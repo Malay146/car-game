@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getDeviceTier, type DeviceTier } from "./deviceTier";
 
 export type QualityPref = "auto" | "low" | "medium" | "high";
 export type QualityLevel = "low" | "medium" | "high";
@@ -19,10 +20,16 @@ export interface SettingsData {
   tilt: boolean;
   /** Size multiplier for the touch controls (0.8..1.3). */
   touchScale: number;
+  /** Multiplier on the quality level's pixel density (0.5..1). Lower = fewer pixels = cooler, longer battery. */
+  renderScale: number;
+  /** Battery saver: forces Low quality and a 30 fps cap without touching the chosen values. */
+  batterySaver: boolean;
 }
 
 interface SettingsStore extends SettingsData {
   hydrated: boolean;
+  /** Highest level "Auto" may pick on this device (from the device tier; not persisted). */
+  autoCeiling: QualityLevel;
   set: (patch: Partial<SettingsData>) => void;
   /** Load saved settings from localStorage (call once on the client). */
   hydrate: () => void;
@@ -41,22 +48,11 @@ const defaults: SettingsData = {
   touchControls: "auto",
   tilt: false,
   touchScale: 1,
+  renderScale: 1,
+  batterySaver: false,
 };
 
-/** Best starting quality guess for this device (used on the very first visit). */
-function detectInitialLevel(): QualityLevel {
-  try {
-    const nav = navigator as Navigator & { deviceMemory?: number };
-    const coarse = window.matchMedia("(pointer: coarse)").matches;
-    const cores = nav.hardwareConcurrency ?? 8;
-    const mem = nav.deviceMemory ?? 8;
-    const weak = cores <= 4 || mem <= 4;
-    if (coarse) return weak ? "low" : "medium";
-    return weak ? "medium" : "high";
-  } catch {
-    return "high";
-  }
-}
+export const LEVEL_ORDER: QualityLevel[] = ["low", "medium", "high"];
 
 function save(data: SettingsData) {
   try {
@@ -69,6 +65,7 @@ function save(data: SettingsData) {
 export const useSettings = create<SettingsStore>((set, get) => ({
   ...defaults,
   hydrated: false,
+  autoCeiling: "high",
   set: (patch) => {
     set(patch);
     const st = get();
@@ -78,17 +75,51 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   },
   hydrate: () => {
     if (get().hydrated) return;
+    let tier: DeviceTier | null = null;
+    try {
+      tier = getDeviceTier();
+    } catch {
+      /* detection failed: keep desktop defaults */
+    }
+    const ceiling = tier?.ceiling ?? "high";
+    const clampLevel = (l: QualityLevel) => (LEVEL_ORDER.indexOf(l) > LEVEL_ORDER.indexOf(ceiling) ? ceiling : l);
     try {
       const raw = window.localStorage.getItem(KEY);
-      if (raw) set({ ...defaults, ...JSON.parse(raw), hydrated: true });
-      else set({ hydrated: true, autoLevel: detectInitialLevel() });
+      if (raw) {
+        // Never override saved choices; only keep the Auto level within this device's ceiling.
+        const saved = { ...defaults, ...JSON.parse(raw) } as SettingsData;
+        set({ ...saved, autoLevel: clampLevel(saved.autoLevel), autoCeiling: ceiling, hydrated: true });
+      } else if (tier) {
+        // First visit: sensible defaults for this class of device (still "Auto", so it keeps adapting).
+        set({
+          hydrated: true,
+          autoCeiling: ceiling,
+          autoLevel: tier.defaultLevel,
+          maxFps: tier.defaultFps,
+          renderScale: tier.defaultRenderScale,
+        });
+      } else {
+        set({ hydrated: true });
+      }
     } catch {
-      set({ hydrated: true });
+      set({ hydrated: true, autoCeiling: ceiling });
     }
   },
 }));
 
-/** The quality level actually in effect ("auto" resolves to the monitored level). */
+/** Quality level in effect: battery saver forces Low, "auto" resolves to the monitored level. */
+export function resolveLevel(s: SettingsData): QualityLevel {
+  if (s.batterySaver) return "low";
+  return s.quality === "auto" ? s.autoLevel : s.quality;
+}
+
+/** Frame cap in effect while racing, in fps (0 = uncapped). Battery saver forces 30. */
+export function resolveMaxFps(s: SettingsData): number {
+  if (s.batterySaver) return 30;
+  return s.maxFps === "max" ? 0 : Number(s.maxFps);
+}
+
+/** The quality level actually in effect. */
 export function useQualityLevel(): QualityLevel {
-  return useSettings((s) => (s.quality === "auto" ? s.autoLevel : s.quality));
+  return useSettings(resolveLevel);
 }

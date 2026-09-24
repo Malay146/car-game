@@ -1,8 +1,9 @@
 "use client";
 
 import { AudioSettingsSection } from "./AudioSettingsSection";
-import { useEffect, useState, type ReactNode } from "react";
-import { useSettings, useQualityLevel, type QualityPref } from "./settings";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useSettings, useQualityLevel, type QualityLevel, type QualityPref } from "./settings";
+import { getDeviceTier, type DeviceTier } from "./deviceTier";
 import { useSettingsUi, type SettingsTab } from "./settingsUi";
 import { ACTIONS, ACTION_LABELS, RESERVED_KEYS, keyLabel, useBindings, type Action } from "./bindings";
 import { disableTilt, enableTilt } from "./inputSources";
@@ -166,44 +167,101 @@ function ControlsSection() {
 // --- Graphics ---------------------------------------------------------------
 
 const QUALITY_INFO: Record<QualityPref, string> = {
-  auto: "Adapts to your device and keeps the frame rate smooth.",
-  low: "No shadows or post effects, low resolution, sparse scenery. Best for phones.",
-  medium: "Soft shadows, light effects, medium resolution.",
-  high: "Full detail, shadows, bloom and sharp resolution.",
+  auto: "Adapts to your device: steps down when frames get slow, back up when there is headroom.",
+  low: "Battery friendly: no shadows or effects, flat sky, small textures, sparse scenery. Best for phones.",
+  medium: "Soft shadows, full sky and textures, most scenery. Good for tablets and laptops.",
+  high: "Full detail: sharp shadows, bloom, dense scenery and higher resolution.",
 };
+
+const LEVEL_LABEL: Record<QualityLevel, string> = { low: "Low", medium: "Medium", high: "High" };
+
+const noSubscribe = () => () => {};
+const tierSnapshot = (): DeviceTier | null => {
+  try {
+    return getDeviceTier(); // detected once and cached
+  } catch {
+    return null;
+  }
+};
+
+function useDeviceTier(): DeviceTier | null {
+  return useSyncExternalStore(noSubscribe, tierSnapshot, () => null);
+}
 
 function GraphicsSection() {
   const quality = useSettings((s) => s.quality);
   const showFps = useSettings((s) => s.showFps);
   const maxFps = useSettings((s) => s.maxFps);
+  const renderScale = useSettings((s) => s.renderScale);
+  const batterySaver = useSettings((s) => s.batterySaver);
+  const ceiling = useSettings((s) => s.autoCeiling);
   const set = useSettings((s) => s.set);
   const level = useQualityLevel();
+  const tier = useDeviceTier();
   return (
     <div className="space-y-4">
-      <Field title="Quality" hint={QUALITY_INFO[quality]}>
-        <Segmented<QualityPref>
-          value={quality}
-          onChange={(v) => set({ quality: v })}
-          options={[
-            { id: "auto", label: "Auto" },
-            { id: "low", label: "Low" },
-            { id: "medium", label: "Medium" },
-            { id: "high", label: "High" },
-          ]}
-        />
-        {quality === "auto" && <p className="text-xs text-zinc-400">Currently using: <b className="text-zinc-200">{level}</b></p>}
-      </Field>
-      <Field title="Frame rate limit" hint="60 is smooth and keeps laptops cool. Max uses your display's full refresh rate (e.g. 120 Hz) and much more power.">
-        <Segmented<"30" | "60" | "max">
-          value={maxFps}
-          onChange={(v) => set({ maxFps: v })}
-          options={[
-            { id: "30", label: "30" },
-            { id: "60", label: "60" },
-            { id: "max", label: "Max" },
-          ]}
-        />
-      </Field>
+      {tier && (
+        <p className="rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-400">
+          Detected device: <b className="text-zinc-200">{tier.label}</b>
+          {tier.gpu && <span className="block truncate" title={tier.gpu}>GPU: {tier.gpu}</span>}
+          <span className="block">Auto quality goes up to {LEVEL_LABEL[ceiling]} on this device.</span>
+        </p>
+      )}
+      <Toggle
+        checked={batterySaver}
+        onChange={(v) => set({ batterySaver: v })}
+        label="Battery saver"
+        hint="Forces Low quality, 30 fps and at most 75% render scale. Keeps phones and laptops cool."
+      />
+      <div className={batterySaver ? "pointer-events-none space-y-4 opacity-50" : "space-y-4"} aria-disabled={batterySaver}>
+        <Field title="Quality" hint={QUALITY_INFO[quality]}>
+          <Segmented<QualityPref>
+            value={quality}
+            onChange={(v) => set({ quality: v })}
+            options={[
+              { id: "auto", label: "Auto" },
+              { id: "low", label: "Low" },
+              { id: "medium", label: "Medium" },
+              { id: "high", label: "High" },
+            ]}
+          />
+          {quality === "auto" && (
+            <p className="text-xs text-zinc-400">
+              Currently using: <b className="text-zinc-200">{LEVEL_LABEL[level]}</b>
+            </p>
+          )}
+        </Field>
+        <Field
+          title="Frame rate limit"
+          hint="30 saves the most battery. 60 is smooth and keeps laptops cool. Max uses your display's full refresh rate (e.g. 120 Hz) and much more power."
+        >
+          <Segmented<"30" | "60" | "max">
+            value={maxFps}
+            onChange={(v) => set({ maxFps: v })}
+            options={[
+              { id: "30", label: "30" },
+              { id: "60", label: "60" },
+              { id: "max", label: "Max" },
+            ]}
+          />
+        </Field>
+        <Field
+          title={`Render scale ${Math.round(renderScale * 100)}%`}
+          hint="Draws the 3D view at fewer pixels and scales it up. Lower = softer image but much less GPU work and heat."
+        >
+          <input
+            type="range"
+            min={0.5}
+            max={1}
+            step={0.05}
+            value={renderScale}
+            onChange={(e) => set({ renderScale: Number(e.target.value) })}
+            className="h-11 w-full accent-red-600"
+            aria-label="Render scale"
+          />
+        </Field>
+      </div>
+      {batterySaver && <p className="text-xs text-yellow-300">Battery saver is on: quality, frame rate and render scale are limited.</p>}
       <Toggle checked={showFps} onChange={(v) => set({ showFps: v })} label="FPS counter" hint="Shows frame rate, scene draws and triangles." />
     </div>
   );

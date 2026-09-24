@@ -2,7 +2,8 @@
 
 import { useSettingsUi } from "./settingsUi";
 import { Suspense, useEffect, useMemo, useRef } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useQualityLevel } from "./settings";
 import { Environment, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { useGameStore } from "./store";
@@ -43,15 +44,40 @@ function Turntable({ url, paint }: { url: string; paint: string }) {
   );
 }
 
+/** The turntable only needs ~30 fps: drive a demand frameloop instead of rendering at the display refresh. */
+function TurntableDriver() {
+  const invalidate = useThree((s) => s.invalidate);
+  useEffect(() => {
+    let raf = 0;
+    let last = 0;
+    const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+      if (now - last < 1000 / 30 - 2) return;
+      last = now;
+      invalidate();
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [invalidate]);
+  return null;
+}
+
 function Preview({ url, paint }: { url: string; paint: string }) {
+  const lite = useQualityLevel() === "low";
   return (
-    <Canvas dpr={[1, 1.5]} camera={{ fov: 32, position: [5.6, 2.8, 7.0], near: 0.1, far: 60 }} gl={{ antialias: true }}>
+    <Canvas
+      frameloop="demand"
+      dpr={[1, lite ? 1.25 : 1.5]}
+      camera={{ fov: 32, position: [5.6, 2.8, 7.0], near: 0.1, far: 60 }}
+      gl={{ antialias: true, powerPreference: "default" }}
+    >
+      <TurntableDriver />
       <color attach="background" args={["#14161c"]} />
       <fog attach="fog" args={["#14161c", 12, 26]} />
       <ambientLight intensity={0.35} />
       <directionalLight position={[4, 6, 3]} intensity={1.8} />
       <directionalLight position={[-5, 3, -4]} intensity={1.1} color="#8fb4ff" />
-      <Environment files="/hdr/overcast.hdr" environmentIntensity={0.8} />
+      <Environment files={lite ? "/hdr/lo/overcast.hdr" : "/hdr/overcast.hdr"} environmentIntensity={0.8} />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
         <circleGeometry args={[2.7, 48]} />
         <meshStandardMaterial color="#23262f" roughness={0.6} metalness={0.3} />

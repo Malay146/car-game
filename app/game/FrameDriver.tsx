@@ -2,11 +2,11 @@
 
 import { useEffect } from "react";
 import { useThree } from "@react-three/fiber";
-import { useSettings } from "./settings";
+import { resolveMaxFps, useSettings } from "./settings";
 import { useSettingsUi } from "./settingsUi";
 import { useGameStore } from "./store";
 
-const MENU_FPS = 30;
+export const MENU_FPS = 30;
 
 /**
  * Drives a `frameloop="demand"` Canvas at a capped rate instead of the display's refresh rate
@@ -23,8 +23,7 @@ export function FrameDriver() {
       raf = requestAnimationFrame(loop);
       if (useSettingsUi.getState().sceneHidden) return;
       const racing = useGameStore.getState().phase === "playing";
-      const pref = useSettings.getState().maxFps;
-      const fps = racing ? (pref === "max" ? 0 : Number(pref)) : MENU_FPS;
+      const fps = racing ? resolveMaxFps(useSettings.getState()) : MENU_FPS;
       if (fps > 0) {
         const interval = 1000 / fps;
         // Small tolerance so a 60 Hz display still hits every frame at a 60 cap.
