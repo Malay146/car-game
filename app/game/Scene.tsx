@@ -2,7 +2,6 @@
 
 import { useRef } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Environment } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import { Track } from "./Track";
@@ -11,11 +10,10 @@ import { RemoteCar } from "./RemoteCar";
 import { CameraRig } from "./CameraRig";
 import { ItemBoxes } from "./ItemBoxes";
 import { Effects } from "./Effects";
-import { SunLight } from "./SunLight";
+import { WeatherRig } from "./WeatherRig";
 import { getGridSlot } from "./trackPath";
 import { CarTransform } from "./vehicleTypes";
 import { useGameStore } from "./store";
-import { getMap } from "./maps";
 import { getCar, isHexColor, pickOpponentLook } from "./cars";
 import { useQualityLevel } from "./settings";
 import { QUALITY } from "./quality";
@@ -26,7 +24,6 @@ const paintOf = (car: ReturnType<typeof getCar>, paint: unknown) => (isHexColor(
 
 export function Scene() {
   const mapId = useGameStore((s) => s.mapId);
-  const theme = getMap(mapId).theme;
   const mode = useGameStore((s) => s.mode);
   const raceId = useGameStore((s) => s.raceId);
   const myId = useGameStore((s) => s.myId);
@@ -52,10 +49,7 @@ export function Scene() {
     {/* `flat` = no tone mapping, matching the look the post-processing pipeline produces; `dpr` is capped per quality level. */}
     <Canvas flat shadows={quality.shadows} dpr={[1, quality.dpr]} camera={{ fov: 60, near: 0.1, far: 900 }} gl={{ powerPreference: "high-performance" }} style={{ touchAction: "none" }}>
       <PerfMonitor />
-      <fog attach="fog" args={[theme.fog.color, theme.fog.near, theme.fog.far]} />
-      <ambientLight intensity={theme.sun.ambient} />
-      <SunLight target={playerTransform} sun={theme.sun} shadows={quality.shadows} mapSize={quality.shadowMapSize} />
-      <Environment key={mapId} files={theme.hdr} background environmentIntensity={theme.envIntensity} />
+      <WeatherRig target={playerTransform} />
 
       <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
         <Track key={`track-${mapId}`} />

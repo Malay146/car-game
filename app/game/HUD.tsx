@@ -10,6 +10,7 @@ import { Garage } from "./Garage";
 import { ProfileSync } from "./ProfileSync";
 import { SpeedFx } from "./SpeedFx";
 import { getCar } from "./cars";
+import { WeatherBadge, WeatherPicker, resetWeatherToMapDefault } from "./WeatherPicker";
 import { SettingsButton, SettingsPanel } from "./SettingsPanel";
 import { TouchControls } from "./TouchControls";
 import { FpsCounter } from "./FpsCounter";
@@ -86,7 +87,14 @@ function Menu() {
             <ControlsHint />
           </div>
           <p className="text-xs text-zinc-400 short:hidden">{totalLaps} laps</p>
-          <MapCarousel value={mapId} onChange={selectMap} />
+          <MapCarousel
+            value={mapId}
+            onChange={(id) => {
+              selectMap(id);
+              resetWeatherToMapDefault();
+            }}
+          />
+          <WeatherPicker />
         </div>
         <div className="flex flex-col items-center gap-4 short:gap-3">
           <button
@@ -156,8 +164,10 @@ function Lobby() {
             onChange={(id) => {
               selectMap(id);
               changeRoomMap(id);
+              resetWeatherToMapDefault();
             }}
           />
+          <WeatherPicker readOnly={!isHost} />
         </div>
         <div className="flex flex-col items-center gap-3 short:gap-2">
           <p className="text-center text-zinc-300">Share this code with friends (up to 4 players).</p>
@@ -214,6 +224,7 @@ function LapPanel({ compact }: { compact: boolean }) {
       <div className={`font-mono tabular-nums ${compact ? "text-lg leading-tight" : "text-2xl short:text-xl"}`}>{formatTime(lapTime)}</div>
       {best !== null && <div className="text-xs text-zinc-400">Best {formatTime(best)}</div>}
       {!online && <div className="mt-1 text-xs text-zinc-400">Bot lap {Math.min(botLap + 1, totalLaps)}</div>}
+      <WeatherBadge />
     </div>
   );
 }

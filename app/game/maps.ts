@@ -1,3 +1,5 @@
+import type { TodId, WeatherId } from "./weather";
+
 export interface RampDef {
   /** World position (x, z) of the ramp's low lip; snapped to the nearest centerline sample. */
   at: [number, number];
@@ -45,6 +47,9 @@ export interface MapDef {
   start: [number, number];
   ramps: RampDef[];
   items: number[];
+  /** Default weather / time of day (the theme is tuned for this pair; players may override both). */
+  weather: WeatherId;
+  timeOfDay: TodId;
   theme: MapTheme;
 }
 
@@ -88,6 +93,8 @@ export const MAPS: MapDef[] = [
     start: [0, -91],
     ramps: [{ at: [40, -100] }, { at: [-70, 150], len: 20, height: 3.4 }],
     items: [0.16, 0.3, 0.42, 0.62, 0.76, 0.86],
+    weather: "clear",
+    timeOfDay: "day",
     theme: {
       hdr: "/hdr/sky.hdr",
       envIntensity: 0.9,
@@ -152,6 +159,8 @@ export const MAPS: MapDef[] = [
     start: [0, -112],
     ramps: [{ at: [44, -115], len: 20, height: 3.4 }, { at: [100, 215] }, { at: [-20, 215], len: 22, height: 4 }],
     items: [0.12, 0.28, 0.48, 0.6, 0.75, 0.9],
+    weather: "clear",
+    timeOfDay: "dusk",
     theme: {
       hdr: "/hdr/dusk.hdr",
       envIntensity: 1.1,
@@ -212,6 +221,8 @@ export const MAPS: MapDef[] = [
     start: [0, -84],
     ramps: [{ at: [30, -90] }, { at: [20, 195], len: 20, height: 3.4 }],
     items: [0.14, 0.24, 0.33, 0.47, 0.62, 0.8],
+    weather: "snow",
+    timeOfDay: "day",
     theme: {
       hdr: "/hdr/overcast.hdr",
       envIntensity: 0.9,
@@ -268,6 +279,8 @@ export const MAPS: MapDef[] = [
     start: [0, -64],
     ramps: [{ at: [30, -70], len: 16, height: 2.8 }, { at: [90, 155], len: 20, height: 3.6 }, { at: [-20, 155] }],
     items: [0.14, 0.24, 0.38, 0.6, 0.7, 0.85],
+    weather: "clear",
+    timeOfDay: "night",
     theme: {
       hdr: "/hdr/night.hdr",
       envIntensity: 0.35,

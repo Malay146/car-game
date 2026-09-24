@@ -15,11 +15,11 @@ import { useGameStore } from "./store";
 import { playBoost, playCheckpoint, playCrash, playLanding } from "./AudioManager";
 import { sendFinish, sendState } from "./net";
 import { markers, setMarker } from "./markers";
-import { getMap } from "./maps";
 import { useQualityLevel } from "./settings";
 import { ShadowBlob } from "./ShadowBlob";
 import { CarStats, NEUTRAL_STATS } from "./cars";
 import { cloneCar, findWheels, tintPaint, carSize } from "./carModel";
+import { getWeatherGrip, useIsDark } from "./weather";
 import {
   activateBoost,
   addSkid,
@@ -90,7 +90,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
   const mapId = useGameStore((s) => s.mapId);
   const centerline = useMemo(() => generateCenterline(mapId), [mapId]);
   const cps = useMemo(() => getCheckpoints(mapId), [mapId]);
-  const headlights = !!getMap(mapId).theme.headlights;
+  const headlights = useIsDark(); // dusk / night / storm
   const lightTarget = useMemo(() => {
     const o = new THREE.Object3D();
     o.position.set(0, 0, 14);
@@ -308,22 +308,23 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     let vlN = vl;
     if (grounded) {
       const vmax = (boosting ? VMAX * 1.3 : VMAX) * stats.topSpeed;
+      const wg = getWeatherGrip(); // rain / storm / snow: 0.78..1
       let a = 0;
       if (input.throttle > 0) {
-        a += input.throttle * ACCEL * stats.accel * (boosting ? 2 : 1) * Math.max(0, 1 - Math.pow(Math.max(vf, 0) / vmax, 2));
+        a += input.throttle * ACCEL * stats.accel * (0.5 + 0.5 * wg) * (boosting ? 2 : 1) * Math.max(0, 1 - Math.pow(Math.max(vf, 0) / vmax, 2));
       } else if (input.throttle < 0) {
         if (vf > 1) a -= BRAKE_DECEL * 0.9 * -input.throttle;
         else a += input.throttle * 14 * Math.max(0, 1 - Math.pow(Math.abs(vf) / REVERSE_MAX, 2));
       }
       const resist = 0.5 + 0.0016 * vf * vf + Math.abs(vl) * (s.sliding ? 0.4 : 0.08);
-      const passive = resist + input.brake * BRAKE_DECEL + (input.handbrake > 0.5 ? 6 : 0);
+      const passive = resist + input.brake * BRAKE_DECEL * wg + (input.handbrake > 0.5 ? 6 : 0);
       vfN = vf + a * DT;
       const reversing = input.throttle < 0 && vf <= 1;
       if (!reversing) vfN = Math.sign(vfN) * Math.max(0, Math.abs(vfN) - passive * DT);
 
-      let G = landing ? 45 : s.sliding ? GRIP_SLIDE : GRIP * stats.grip;
+      let G = (landing ? 45 : s.sliding ? GRIP_SLIDE : GRIP * stats.grip) * wg;
       if (s.sliding && slipRatio > 1.1) G = 6;
-      const aMax = s.sliding ? 20 : 48;
+      const aMax = (s.sliding ? 20 : 48) * wg;
       vlN = vl + clamp(-vl * G, -aMax, aMax) * DT;
     }
     const vxN = fwd.x * vfN + right.x * vlN;
