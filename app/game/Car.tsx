@@ -12,7 +12,7 @@ import { createBotDriver } from "./BotController";
 import { useKeyboardInput } from "./PlayerControls";
 import { DriveInput, CarTransform } from "./vehicleTypes";
 import { useGameStore } from "./store";
-import { playBoost, playCrash } from "./AudioManager";
+import { playBoost, playCheckpoint, playCrash, playLanding } from "./AudioManager";
 import { sendFinish, sendState } from "./net";
 import { markers, setMarker } from "./markers";
 import { getMap } from "./maps";
@@ -287,6 +287,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       if (s.airTime > 0.25) {
         s.landGrace = 0.6;
         justLanded = true;
+        if (isPlayer) playLanding(Math.min(1, s.airTime / 1.2));
       }
       s.airTime = 0;
     }
@@ -530,7 +531,10 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       const gap = Math.abs(progressIdx - cps[nextCp]);
       if (Math.min(gap, centerline.length - gap) < 20) {
         s.cp = nextCp;
-        if (isPlayer && nextCp !== 0) useGameStore.getState().flash("Checkpoint");
+        if (isPlayer && nextCp !== 0) {
+          useGameStore.getState().flash("Checkpoint");
+          playCheckpoint();
+        }
       }
     }
     if (!s.started) {
