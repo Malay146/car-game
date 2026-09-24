@@ -1,1 +1,2 @@
-race.ogg: "As Fast As You Can" from OpenGameArt.org (opengameart.org/content/as-fast-as-you-can), CC0.
+All tracks in this folder are CC0 (public domain), from OpenGameArt.org.
+See ../CREDITS.md for the title, author and URL of each file.

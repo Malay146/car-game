@@ -89,7 +89,7 @@ export function Garage({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-20 flex flex-col bg-zinc-950/95 text-white md:flex-row">
+    <div className="pointer-events-auto fixed inset-0 z-50 flex flex-col bg-zinc-950/95 text-white md:flex-row">
       <div className="relative min-h-[38%] flex-1">
         <Preview url={car.url} paint={paint} />
         <div className="pointer-events-none absolute left-5 top-4">
