@@ -10,7 +10,7 @@ const MAX_MARKERS = 6;
 const PAD = 22;
 
 /** North-up track map with a dot per car, plus live race position. */
-export function Minimap() {
+export function Minimap({ compact = false }: { compact?: boolean }) {
   const mapId = useGameStore((s) => s.mapId);
   const path = useMemo(() => generateCenterline(mapId), [mapId]);
   const map = getMap(mapId);
@@ -80,12 +80,12 @@ export function Minimap() {
   const start = path[0];
 
   return (
-    <div className="pointer-events-none absolute bottom-6 left-6 rounded-xl bg-black/60 p-2 backdrop-blur-sm">
-      <svg
-        width={210}
-        height={Math.round((210 * view.h) / view.w)}
-        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
-      >
+    <div
+      className={`pointer-events-none absolute rounded-xl bg-black/60 p-2 backdrop-blur-sm ${
+        compact ? "left-2 top-[5.6rem] w-[8.5rem] p-1.5" : "bottom-6 left-6 w-[13.75rem] short:bottom-3 short:left-3 short:w-36"
+      }`}
+    >
+      <svg className="block h-auto w-full" viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}>
         <polyline points={view.points + ` ${path[0].x},${path[0].z}`} fill="none" stroke="#f4f4f4" strokeWidth={17} strokeLinejoin="round" opacity={0.85} />
         <polyline points={view.points + ` ${path[0].x},${path[0].z}`} fill="none" stroke="#2b2b2b" strokeWidth={11} strokeLinejoin="round" />
         <rect x={start.x - 2} y={start.z - 9} width={4} height={18} fill="#fff" />
@@ -105,7 +105,11 @@ export function Minimap() {
         ))}
       </svg>
       {position && position.of > 1 && (
-        <div className="absolute -top-10 left-0 rounded-lg bg-black/60 px-3 py-1 font-black leading-none backdrop-blur-sm">
+        <div
+          className={`absolute rounded-lg bg-black/60 px-3 py-1 font-black leading-none backdrop-blur-sm ${
+            compact ? "left-full top-0 ml-2" : "-top-10 left-0"
+          }`}
+        >
           <span className="text-2xl">{position.place}</span>
           <span className="text-sm text-zinc-300">/{position.of}</span>
         </div>

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import { MAX_PARTICLES, MAX_SKIDS, particles, skids } from "./fx";
+import { MAX_PARTICLES, MAX_SKIDS, particles, skidHead, skids } from "./fx";
 
 /** Renders drift smoke, boost flames and tire marks from the shared fx pools. */
 export function Effects() {
@@ -16,7 +16,7 @@ export function Effects() {
     p: new THREE.Vector3(),
     s: new THREE.Vector3(),
     c: new THREE.Color(),
-    zero: new THREE.Matrix4().makeScale(0, 0, 0),
+    skidKey: -1,
   });
 
   useEffect(() => {
@@ -40,12 +40,10 @@ export function Effects() {
         p.y += p.vy * delta;
         p.z += p.vz * delta;
       }
-      for (let i = 0; i < MAX_PARTICLES; i++) {
+      // Only draw live particles (instance count follows the pool) instead of zero-scaling the idle ones.
+      pm.count = particles.length;
+      for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
-        if (!p) {
-          pm.setMatrixAt(i, t.zero);
-          continue;
-        }
         const k = p.age / p.life;
         const size = p.size * (1 + p.grow * k) * (1 - k * k);
         t.p.set(p.x, p.y, p.z);
@@ -60,7 +58,10 @@ export function Effects() {
     }
 
     const sm = skidMesh.current;
-    if (sm) {
+    // Skid marks are static once laid: only rebuild the instance buffer when one was added.
+    const skidKey = skids.length * 1024 + skidHead;
+    if (sm && skidKey !== t.skidKey) {
+      t.skidKey = skidKey;
       sm.count = skids.length;
       for (let i = 0; i < skids.length; i++) {
         const s = skids[i];
