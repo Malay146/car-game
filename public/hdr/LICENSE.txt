@@ -1,0 +1,2 @@
+Sky HDRI "Kloofendal 48d Partly Cloudy (Pure Sky)" and asphalt_02 / aerial_grass_rock textures: Poly Haven (polyhaven.com), CC0.
+dusk.hdr (qwantani_dusk_2_puresky), overcast.hdr (kloofendal_overcast_puresky), night.hdr (dikhololo_night), red_sand_* and snow_02_* textures: Poly Haven (polyhaven.com), CC0.
