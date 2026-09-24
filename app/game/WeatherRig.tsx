@@ -9,6 +9,8 @@ import { Precipitation } from "./Precipitation";
 import type { CarTransform } from "./vehicleTypes";
 import { EnvParams, computeEnv, onThunder, useTodId, useWeatherId } from "./weather";
 import { useGameStore } from "./store";
+import { useQualityLevel } from "./settings";
+import { QUALITY } from "./quality";
 
 /** Working state that eases towards the target lighting, so changing weather / time of day crossfades. */
 interface Live {
@@ -63,6 +65,7 @@ export function WeatherRig({ target }: { target: RefObject<CarTransform> }) {
   const mapId = useGameStore((s) => s.mapId);
   const weather = useWeatherId();
   const tod = useTodId();
+  const quality = QUALITY[useQualityLevel()];
   const env = useMemo<EnvParams>(() => computeEnv(mapId, weather, tod), [mapId, weather, tod]);
 
   // the HDRI currently shown (swapped only once the new one is loaded)
@@ -159,7 +162,7 @@ export function WeatherRig({ target }: { target: RefObject<CarTransform> }) {
     <>
       <fog ref={fogRef} attach="fog" args={FOG_ARGS} />
       <ambientLight ref={ambRef} />
-      <SunLight target={target} sunRef={sun} />
+      <SunLight target={target} sunRef={sun} shadows={quality.shadows} mapSize={quality.shadowMapSize} />
       <Suspense fallback={null}>
         <HdrLoader file={env.hdr} onReady={setShownHdr} />
       </Suspense>

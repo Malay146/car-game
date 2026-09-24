@@ -15,6 +15,8 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
 export function CameraRig({ target }: { target: RefObject<CarTransform> }) {
   const pos = useRef(new THREE.Vector3());
   const look = useRef(new THREE.Vector3());
+  const desired = useRef(new THREE.Vector3());
+  const aim = useRef(new THREE.Vector3());
   const angle = useRef(0);
   const init = useRef(false);
 
@@ -30,23 +32,23 @@ export function CameraRig({ target }: { target: RefObject<CarTransform> }) {
     angle.current += wrap(desiredAngle - angle.current) * (1 - Math.exp(-5 * delta));
 
     const dist = 6 + Math.min(speed, 46) * 0.04;
-    const desired = new THREE.Vector3(
+    const want = desired.current.set(
       t.x - Math.sin(angle.current) * dist,
       t.y + HEIGHT + Math.min(speed, 46) * 0.012,
       t.z - Math.cos(angle.current) * dist
     );
-    const aim = new THREE.Vector3(
+    const target3 = aim.current.set(
       t.x + Math.sin(angle.current) * 3,
       t.y + LOOK_HEIGHT,
       t.z + Math.cos(angle.current) * 3
     );
     if (!init.current) {
-      pos.current.copy(desired);
-      look.current.copy(aim);
+      pos.current.copy(want);
+      look.current.copy(target3);
       init.current = true;
     }
-    pos.current.lerp(desired, 1 - Math.exp(-22 * delta));
-    look.current.lerp(aim, 1 - Math.exp(-12 * delta));
+    pos.current.lerp(want, 1 - Math.exp(-22 * delta));
+    look.current.lerp(target3, 1 - Math.exp(-12 * delta));
 
     if (camera instanceof THREE.PerspectiveCamera) {
       const targetFov = 60 + Math.min(speed, 46) * 0.3 + (isBoosting(performance.now()) ? 14 : 0);

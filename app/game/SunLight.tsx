@@ -13,7 +13,17 @@ export interface LiveSun {
 }
 
 /** Directional sun whose shadow box follows the player car. */
-export function SunLight({ target, sunRef }: { target: RefObject<CarTransform>; sunRef: RefObject<LiveSun | null> }) {
+export function SunLight({
+  target,
+  sunRef,
+  shadows = true,
+  mapSize = 2048,
+}: {
+  target: RefObject<CarTransform>;
+  sunRef: RefObject<LiveSun | null>;
+  shadows?: boolean;
+  mapSize?: number;
+}) {
   const light = useRef<THREE.DirectionalLight>(null);
   const aim = useRef<THREE.Object3D>(null);
 
@@ -34,13 +44,14 @@ export function SunLight({ target, sunRef }: { target: RefObject<CarTransform>; 
     <>
       <object3D ref={aim} />
       <directionalLight
+        key={mapSize /* a new shadow-map size needs a fresh light */}
         ref={(l) => {
           light.current = l;
           if (l && aim.current) l.target = aim.current;
         }}
         intensity={0}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
+        castShadow={shadows}
+        shadow-mapSize={[mapSize, mapSize]}
         shadow-camera-left={-45}
         shadow-camera-right={45}
         shadow-camera-top={45}

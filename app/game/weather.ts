@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { useGameStore } from "./store";
 import { getMap } from "./maps";
+import { playThunder } from "./AudioManager";
 
 // ---------------------------------------------------------------------------------------------
 // Weather + time of day: ids, defaults, gameplay effects and the lighting/fog lookup.
@@ -74,13 +75,11 @@ export function getWeatherGrip(): number {
 // ----- lightning audio hook --------------------------------------------------------------------
 
 /**
- * AUDIO HOOK (owned by the audio engineer): called once for every lightning strike, at the moment
- * of the visual flash. `distance01` is 0 (right overhead) .. 1 (far away); a realistic engine
- * would delay the rumble by ~distance01 * 2.5 s and lower the volume with distance.
- * TODO(audio): call playThunder(distance01) here once it exists.
+ * Called once for every lightning strike, at the moment of the visual flash. `distance01` is
+ * 0 (right overhead) .. 1 (far away). Only audible while racing.
  */
 export function onThunder(distance01: number): void {
-  void distance01;
+  if (useGameStore.getState().phase === "playing") playThunder(distance01);
 }
 
 // ----- lighting / fog lookup -------------------------------------------------------------------
