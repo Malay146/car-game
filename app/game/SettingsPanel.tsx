@@ -1,5 +1,6 @@
 "use client";
 
+import { AudioSettingsSection } from "./AudioSettingsSection";
 import { useEffect, useState, type ReactNode } from "react";
 import { useSettings, useQualityLevel, type QualityPref } from "./settings";
 import { useSettingsUi, type SettingsTab } from "./settingsUi";
@@ -317,8 +318,7 @@ export function SettingsPanel() {
           {tab === "touch" && <TouchSection />}
           {tab === "audio" && (
             <div className="space-y-3">
-              {/* AUDIO SETTINGS SLOT: the lead drops <AudioSettingsSection /> here. */}
-              <p className="text-sm text-zinc-400">Audio options will appear here.</p>
+              <AudioSettingsSection />
             </div>
           )}
         </div>
