@@ -44,3 +44,4 @@ assets-src/
 # test build output
 .next-test/
 .claude/worktrees/
+_tools/
