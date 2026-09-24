@@ -1,0 +1,8 @@
+skid-loop.mp3 is "Car tire squeal skid loop" by audible-edge (Tom Haigh)
+(https://freesound.org/people/audible-edge/sounds/71739/, via
+https://opengameart.org/content/car-tire-squeal-skid-loop).
+Licensed under Creative Commons Attribution 3.0 (CC BY 3.0):
+https://creativecommons.org/licenses/by/3.0/
+Changes: converted to mono mp3, level-adjusted.
+
+Every other file in sfx/ is CC0; see ../CREDITS.md.

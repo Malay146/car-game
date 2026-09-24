@@ -1,1 +1,2 @@
-loop0-5.wav: "Racing car engine sound loops" from OpenGameArt.org (opengameart.org/content/racing-car-engine-sound-loops), CC0.
+loop0-5.wav: "Racing car engine sound loops" by domasx2, from OpenGameArt.org
+(opengameart.org/content/racing-car-engine-sound-loops), CC0.
