@@ -133,7 +133,7 @@ function Rain({ target, count, storm, bright }: { target: RefObject<CarTransform
     u.uVel.value.set(wx - t.vx * 0.6, -fall, wz - t.vz * 0.6);
     u.uPx.value = pixelScale(state.camera, state.size.height);
     u.uColor.value.setRGB(0.72 * bright, 0.8 * bright, 0.9 * bright);
-    u.uOpacity.value = storm ? 0.7 : 0.6;
+    u.uOpacity.value = storm ? 0.85 : 0.75;
   });
 
   return (
