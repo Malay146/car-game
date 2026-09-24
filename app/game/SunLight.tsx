@@ -7,7 +7,17 @@ import { CarTransform } from "./vehicleTypes";
 import type { MapTheme } from "./maps";
 
 /** Directional sun whose shadow box follows the player car. */
-export function SunLight({ target, sun }: { target: RefObject<CarTransform>; sun: MapTheme["sun"] }) {
+export function SunLight({
+  target,
+  sun,
+  shadows = true,
+  mapSize = 2048,
+}: {
+  target: RefObject<CarTransform>;
+  sun: MapTheme["sun"];
+  shadows?: boolean;
+  mapSize?: number;
+}) {
   const light = useRef<THREE.DirectionalLight>(null);
   const aim = useRef<THREE.Object3D>(null);
 
@@ -25,14 +35,15 @@ export function SunLight({ target, sun }: { target: RefObject<CarTransform>; sun
     <>
       <object3D ref={aim} />
       <directionalLight
+        key={mapSize /* a new shadow-map size needs a fresh light */}
         ref={(l) => {
           light.current = l;
           if (l && aim.current) l.target = aim.current;
         }}
         intensity={sun.intensity}
         color={sun.color}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
+        castShadow={shadows}
+        shadow-mapSize={[mapSize, mapSize]}
         shadow-camera-left={-45}
         shadow-camera-right={45}
         shadow-camera-top={45}

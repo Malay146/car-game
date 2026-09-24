@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useMemo } from "react";
 import * as THREE from "three";
 import { useGLTF, useTexture } from "@react-three/drei";
 import { RigidBody, TrimeshCollider } from "@react-three/rapier";
@@ -10,6 +10,8 @@ import { getTerrain } from "./terrain";
 import { useGameStore } from "./store";
 import { MapFeatures } from "./MapFeatures";
 import { InstancedProps, Placement, Prop } from "./Props";
+import { useQualityLevel } from "./settings";
+import { QUALITY, isGroundCover } from "./quality";
 
 const ROAD_Y = 0.03;
 const SHOULDER_EDGE = 9.9;
@@ -162,6 +164,7 @@ export function Track() {
   const map = getMap(mapId);
   const theme = map.theme;
   const path = useMemo(() => generateCenterline(mapId), [mapId]);
+  const quality = QUALITY[useQualityLevel()];
 
   const g = theme.ground.key;
   const [asphaltD, asphaltN, asphaltR, groundD, groundN, groundR] = useTexture(
@@ -176,7 +179,7 @@ export function Track() {
     (textures) => {
       (textures as THREE.Texture[]).forEach((t, i) => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.anisotropy = 8;
+        t.anisotropy = quality.anisotropy;
         if (i === 0 || i === 3) t.colorSpace = THREE.SRGBColorSpace;
         t.needsUpdate = true;
       });
@@ -261,10 +264,11 @@ export function Track() {
       }
       return true;
     };
-    const groups = theme.scenery.map((grp) => {
+    const groups = theme.scenery.filter((grp) => quality.groundCover || !isGroundCover(grp.url)).map((grp) => {
       const placements: Placement[] = [];
       let attempts = 0;
-      while (placements.length < grp.count && attempts < grp.count * 25) {
+      const count = Math.round(grp.count * quality.sceneryDensity);
+      while (placements.length < count && attempts < count * 25) {
         attempts++;
         const x = x0 + rand() * (x1 - x0);
         const z = z0 + rand() * (z1 - z0);
@@ -275,7 +279,7 @@ export function Track() {
     });
     // A few of the first group lining the outside of the barriers.
     const lining: Placement[] = [];
-    for (let i = 0; i < path.length; i += 9) {
+    for (let i = 0; i < path.length; i += Math.max(9, Math.round(9 / quality.sceneryDensity))) {
       const p = path[i];
       const [nx, nz] = normalOf(p);
       const side = rand() < 0.5 ? -1 : 1;
@@ -327,7 +331,7 @@ export function Track() {
       }
     }
     return { groups, lining, lamps, barrelsA, barrelsB, crates, boxes, tyres };
-  }, [path, theme, mapId, terrain]);
+  }, [path, theme, mapId, terrain, quality.sceneryDensity, quality.groundCover]);
 
   const start = path[0];
   const [snx, snz] = normalOf(start);
@@ -426,10 +430,17 @@ export function Track() {
         scale={9}
       />
 
+      {/* Each group streams in on its own so a late model never blanks the whole scene (e.g. when quality steps up). */}
       {scenery.groups.map((grp, i) => (
-        <InstancedProps key={grp.url + i} url={grp.url} placements={grp.placements} castShadow={!/fern|grass|shrub/.test(grp.url)} />
+        <Suspense key={grp.url + i} fallback={null}>
+          <InstancedProps url={grp.url} placements={grp.placements} castShadow={!isGroundCover(grp.url)} />
+        </Suspense>
       ))}
-      {theme.scenery[0] && <InstancedProps url={theme.scenery[0].url} placements={scenery.lining} castShadow />}
+      {theme.scenery[0] && (
+        <Suspense fallback={null}>
+          <InstancedProps url={theme.scenery[0].url} placements={scenery.lining} castShadow />
+        </Suspense>
+      )}
       <InstancedProps url="/models/real/street_lamp_01.glb" placements={scenery.lamps} castShadow />
       <InstancedProps url="/models/real/Barrel_01.glb" placements={scenery.barrelsA} castShadow />
       <InstancedProps url="/models/real/Barrel_02.glb" placements={scenery.barrelsB} castShadow />
