@@ -10,6 +10,7 @@ import { Car } from "./Car";
 import { RemoteCar } from "./RemoteCar";
 import { CameraRig } from "./CameraRig";
 import { ItemBoxes } from "./ItemBoxes";
+import { HiddenTabKeeper } from "./HiddenTabKeeper";
 import { Effects } from "./Effects";
 import { SunLight } from "./SunLight";
 import { getGridSlot } from "./trackPath";
@@ -72,6 +73,7 @@ export function Scene() {
                   id={p.id}
                   model={CAR_MODELS[i % CAR_MODELS.length]}
                   color={CAR_COLORS[i % CAR_COLORS.length]}
+                  name={p.name}
                   startX={g.x}
                   startZ={g.z}
                   startHeading={g.heading}
@@ -93,6 +95,7 @@ export function Scene() {
       </Physics>
 
       <CameraRig target={playerTransform} />
+      <HiddenTabKeeper />
 
       <EffectComposer>
         <Bloom intensity={0.35} luminanceThreshold={0.7} mipmapBlur />

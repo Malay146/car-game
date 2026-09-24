@@ -20,6 +20,8 @@ interface RoomPlayer {
   name: string;
   carId: string;
   paint: string;
+  /** Connection dropped; the seat is held for a reconnect. */
+  offline?: boolean;
 }
 
 export interface PlayerProfile {

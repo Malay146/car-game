@@ -6,14 +6,15 @@ import { startAudio } from "./AudioManager";
 import { changeRoomMap, createRoom, joinRoom, leaveRoomNet, requestStart } from "./net";
 import { MapCarousel } from "./MapCarousel";
 import { Minimap } from "./Minimap";
+import { PlayerNameField } from "./PlayerNameField";
+import { ConnectionBanner, MenuNetMessage } from "./NetBanner";
+import { RaceResults } from "./Results";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = (seconds % 60).toFixed(2).padStart(5, "0");
   return `${m}:${s}`;
 }
-
-const ordinal = (n: number) => ["1st", "2nd", "3rd", "4th"][n - 1] ?? `${n}th`;
 
 const primaryButton =
   "rounded-full bg-red-600 px-8 py-3 text-xl font-bold uppercase tracking-wide shadow-lg transition-transform hover:scale-105 hover:bg-red-500 disabled:opacity-50 disabled:hover:scale-100";
@@ -70,6 +71,7 @@ function Menu() {
         WASD / arrows to drive, Space to brake, Shift to handbrake-drift, E to boost, F to flip the car upright, R to return to your last checkpoint. {totalLaps} laps.
       </p>
       <MapCarousel value={mapId} onChange={selectMap} />
+      <PlayerNameField />
       <button
         className={primaryButton}
         onClick={() => {
@@ -100,6 +102,7 @@ function Menu() {
         </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
       </div>
+      <MenuNetMessage />
     </div>
   );
 }
@@ -128,14 +131,18 @@ function Lobby() {
       />
       <p className="text-zinc-300">Share this code with friends (up to 4 players).</p>
       <p className="max-w-sm text-center text-xs text-zinc-400">
-        Testing on one computer? Use two separate browser windows side by side. A background tab pauses its game, so that player looks frozen.
+        Testing on one computer? Use two separate browser windows side by side (a background tab keeps racing, but runs slower).
       </p>
       <ul className="w-64 space-y-1">
-        {roomPlayers.map((p, i) => (
+        {roomPlayers.map((p) => (
           <li key={p.id} className="flex justify-between rounded-md bg-white/10 px-3 py-2">
-            <span>
-              {p.name} {i + 1}
-              {p.id === myId ? " (you)" : ""}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="inline-block h-3 w-3 shrink-0 rounded-full ring-1 ring-white/50" style={{ background: p.paint }} />
+              <span className="truncate">
+                {p.name}
+                {p.id === myId ? " (you)" : ""}
+              </span>
+              {p.offline && <span className="text-xs text-amber-300">reconnecting</span>}
             </span>
             {p.id === hostId && <span className="text-xs text-yellow-400">HOST</span>}
           </li>
@@ -171,8 +178,6 @@ export function HUD() {
   const bot = useGameStore((s) => s.bot);
   const totalLaps = useGameStore((s) => s.totalLaps);
   const toggleMuted = useGameStore((s) => s.toggleMuted);
-  const reset = useGameStore((s) => s.reset);
-  const leaveRoom = useGameStore((s) => s.leaveRoom);
   const item = useGameStore((s) => s.item);
 
   const playing = phase === "playing";
@@ -182,6 +187,7 @@ export function HUD() {
     <div className="pointer-events-none absolute inset-0 select-none font-sans text-white">
       {phase === "menu" && <Menu />}
       {phase === "lobby" && <Lobby />}
+      <ConnectionBanner />
 
       {playing && raceState === "countdown" && (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -228,36 +234,7 @@ export function HUD() {
         </>
       )}
 
-      {playing && raceState === "finished" && (
-        <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black/75">
-          <h2 className="text-4xl font-black">
-            {player.place === null
-              ? "FINISHED"
-              : online
-                ? `YOU FINISHED ${ordinal(player.place).toUpperCase()}`
-                : player.place === 1
-                  ? "YOU WIN"
-                  : "BOT WINS"}
-          </h2>
-          {player.bestLapTime !== null && (
-            <p className="text-zinc-300">Best lap: {formatTime(player.bestLapTime)}</p>
-          )}
-          <button className={primaryButton} onClick={reset}>
-            {online ? "Back to lobby" : "Race again"}
-          </button>
-          {online && (
-            <button
-              className={secondaryButton}
-              onClick={() => {
-                leaveRoomNet();
-                leaveRoom();
-              }}
-            >
-              Leave room
-            </button>
-          )}
-        </div>
-      )}
+      {playing && raceState === "finished" && <RaceResults />}
 
       <button
         onClick={toggleMuted}
