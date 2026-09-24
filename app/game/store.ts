@@ -72,8 +72,11 @@ interface GameStore {
   finishRace: (who: "player" | "bot") => void;
 
   startOffline: () => void;
-  enterRoom: (code: string, id: string, players: RoomPlayer[], hostId: string, mapId: string) => void;
-  setRoomPlayers: (players: RoomPlayer[], hostId: string, mapId?: string) => void;
+  enterRoom: (code: string, id: string, players: RoomPlayer[], hostId: string, mapId: string, options?: Record<string, string>) => void;
+  setRoomPlayers: (players: RoomPlayer[], hostId: string, mapId?: string, options?: Record<string, string>) => void;
+  /** Race options (weather, time of day, mode, laps, ...). Online they are synced from the host. */
+  options: Record<string, string>;
+  setOption: (key: string, value: string) => void;
   beginOnlineRace: () => void;
   setOnlineResults: (order: string[]) => void;
   leaveRoom: () => void;
@@ -120,6 +123,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     phase: "menu",
     mode: "offline",
     mapId: DEFAULT_MAP_ID,
+    options: {},
+    setOption: (key, value) => set((s) => ({ options: { ...s.options, [key]: value } })),
     profile: { name: "Player", carId: "race", paint: "#e0322f" },
     setProfile: (p) => set((s) => ({ profile: { ...s.profile, ...p } })),
     selectMap: (id) => {
@@ -186,9 +191,10 @@ export const useGameStore = create<GameStore>((set, get) => {
       runCountdown();
     },
 
-    enterRoom: (roomCode, myId, roomPlayers, hostId, mapId) => {
+    enterRoom: (roomCode, myId, roomPlayers, hostId, mapId, options) => {
       setActiveMap(mapId);
       set({
+        options: options ?? {},
         mapId: getMap(mapId).id,
         mode: "online",
         phase: "lobby",
@@ -201,12 +207,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       });
     },
 
-    setRoomPlayers: (roomPlayers, hostId, mapId) => {
+    setRoomPlayers: (roomPlayers, hostId, mapId, options) => {
+      const opt = options ? { options } : {};
       if (mapId && mapId !== get().mapId) {
         setActiveMap(mapId);
-        set({ roomPlayers, hostId, mapId: getMap(mapId).id, raceId: get().raceId + 1 });
+        set({ roomPlayers, hostId, mapId: getMap(mapId).id, raceId: get().raceId + 1, ...opt });
       } else {
-        set({ roomPlayers, hostId });
+        set({ roomPlayers, hostId, ...opt });
       }
     },
 

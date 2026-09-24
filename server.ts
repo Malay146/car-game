@@ -44,6 +44,8 @@ interface Room {
   players: RoomPlayer[];
   finished: string[];
   mapId: string;
+  /** Free-form host-chosen settings synced to everyone (weather, time of day, mode, laps, ...). */
+  options: Record<string, string>;
 }
 
 const rooms = new Map<string, Room>();
@@ -71,7 +73,12 @@ async function main() {
   const io = new Server(httpServer);
 
   const broadcastPlayers = (room: Room) => {
-    io.to(room.code).emit("room:players", { players: room.players, hostId: room.hostId, mapId: room.mapId });
+    io.to(room.code).emit("room:players", {
+      players: room.players,
+      hostId: room.hostId,
+      mapId: room.mapId,
+      options: room.options,
+    });
   };
 
   const leave = (socket: Socket) => {
@@ -101,11 +108,12 @@ async function main() {
         players: [{ id: socket.id, name: clean(profile?.name, "Player 1"), carId: clean(profile?.carId, "race", 30), paint: clean(profile?.paint, "#e0322f", 9) }],
         finished: [],
         mapId: mapId || "circuit",
+        options: {},
       };
       rooms.set(code, room);
       roomOf.set(socket.id, code);
       socket.join(code);
-      ack({ ok: true, code, id: socket.id, players: room.players, hostId: room.hostId, mapId: room.mapId });
+      ack({ ok: true, code, id: socket.id, players: room.players, hostId: room.hostId, mapId: room.mapId, options: room.options });
     });
 
     socket.on("room:join", (code: string, profile: Profile, ack: (r: unknown) => void) => {
@@ -121,7 +129,7 @@ async function main() {
       });
       roomOf.set(socket.id, room.code);
       socket.join(room.code);
-      ack({ ok: true, code: room.code, id: socket.id, players: room.players, hostId: room.hostId, mapId: room.mapId });
+      ack({ ok: true, code: room.code, id: socket.id, players: room.players, hostId: room.hostId, mapId: room.mapId, options: room.options });
       broadcastPlayers(room);
     });
 
@@ -129,6 +137,17 @@ async function main() {
       const room = rooms.get(roomOf.get(socket.id) ?? "");
       if (!room || room.hostId !== socket.id || typeof mapId !== "string") return;
       room.mapId = mapId;
+      broadcastPlayers(room);
+    });
+
+    socket.on("room:options", (patch: Record<string, unknown>) => {
+      const room = rooms.get(roomOf.get(socket.id) ?? "");
+      if (!room || room.hostId !== socket.id || !patch || typeof patch !== "object") return;
+      for (const [k, v] of Object.entries(patch)) {
+        if (typeof v === "string" && k.length <= 16 && v.length <= 32 && Object.keys(room.options).length < 16) {
+          room.options[k] = v;
+        }
+      }
       broadcastPlayers(room);
     });
 

@@ -36,6 +36,7 @@ interface JoinAck {
   players?: RoomPlayer[];
   hostId?: string;
   mapId?: string;
+  options?: Record<string, string>;
 }
 
 /** Latest snapshot per remote player; mutated by socket events, read every frame by RemoteCar. */
@@ -48,9 +49,12 @@ function getSocket(): Socket {
   const s = io();
   socket = s;
 
-  s.on("room:players", ({ players, hostId, mapId }: { players: RoomPlayer[]; hostId: string; mapId: string }) => {
-    useGameStore.getState().setRoomPlayers(players, hostId, mapId);
-  });
+  s.on(
+    "room:players",
+    ({ players, hostId, mapId, options }: { players: RoomPlayer[]; hostId: string; mapId: string; options?: Record<string, string> }) => {
+      useGameStore.getState().setRoomPlayers(players, hostId, mapId, options);
+    }
+  );
   s.on("player:left", (id: string) => {
     remoteStates.delete(id);
   });
@@ -72,7 +76,7 @@ function getSocket(): Socket {
 
 function applyJoin(ack: JoinAck) {
   if (ack.ok && ack.code && ack.id && ack.players && ack.hostId) {
-    useGameStore.getState().enterRoom(ack.code, ack.id, ack.players, ack.hostId, ack.mapId ?? "circuit");
+    useGameStore.getState().enterRoom(ack.code, ack.id, ack.players, ack.hostId, ack.mapId ?? "circuit", ack.options ?? {});
   }
 }
 
@@ -96,6 +100,11 @@ export function joinRoom(code: string, profile: Profile): Promise<JoinAck> {
 
 export function changeRoomMap(mapId: string) {
   socket?.emit("room:map", mapId);
+}
+
+/** Host only: merge settings (weather, time of day, mode, ...) that the server syncs to the whole room. */
+export function changeRoomOptions(patch: Record<string, string>) {
+  socket?.emit("room:options", patch);
 }
 
 export function requestStart() {
