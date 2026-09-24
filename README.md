@@ -22,7 +22,8 @@ npm run dev        # http://localhost:3000 (auto-picks a free port at or above P
 ```
 
 `npm run dev` starts `server.ts`, a custom server that runs Next.js and the Socket.IO multiplayer
-server on the same port, so online rooms work locally with no extra setup.
+server on the same port, so online rooms work locally with no extra setup. To try the peer-to-peer
+mode that production uses, open `http://localhost:3000/?net=p2p` (or set `NEXT_PUBLIC_NET_MODE=p2p`).
 
 ```bash
 npm run build      # production build of the frontend
@@ -35,11 +36,14 @@ npm run dev:all    # frontend (:3000) and standalone realtime server (:4000) as 
 
 - `app/game/` is the client. `Car.tsx` is the arcade vehicle model on a Rapier body, `Track.tsx`,
   `trackPath.ts` and `maps.ts` build the tracks, `store.ts` (zustand) holds game state, `HUD.tsx`,
-  `Results.tsx` and `Minimap.tsx` are the UI, `net.ts` is the Socket.IO client.
-- `realtime/` is the multiplayer server. `rooms.ts` holds all room and race logic and is shared by
-  - `server.ts` (dev / self-hosted: Next.js and Socket.IO in one process), and
-  - `realtime/server.ts` (standalone: plain http + Socket.IO with `/healthz`, for hosting the
-    realtime part somewhere other than Vercel).
+  `Results.tsx` and `Minimap.tsx` are the UI, `net.ts` is the network client (Socket.IO or
+  peer-to-peer, see `p2p.ts`).
+- `realtime/` is the multiplayer logic. `rooms.ts` holds all room and race logic behind a tiny
+  socket-like interface (no Node-only imports) and is shared by
+  - `server.ts` (dev / self-hosted: Next.js and Socket.IO in one process),
+  - `realtime/server.ts` (standalone: plain http + Socket.IO with `/healthz`), and
+  - the host's browser in peer-to-peer mode: `realtime/hub.ts` is an in-memory stand-in for a
+    Socket.IO server, fed by WebRTC data channels (`app/game/p2p.ts`, PeerJS).
 - Online play details:
   - Cars send their state ~30 times per second. Remote cars are drawn about 100 ms in the past by
     interpolating buffered, timestamped snapshots (`remoteBuffer.ts`), with capped extrapolation (250 ms)
@@ -49,16 +53,53 @@ npm run dev:all    # frontend (:3000) and standalone realtime server (:4000) as 
     track, and only accepts `race:finish` when that progress and the elapsed time are plausible.
     Finish times are measured with the server clock.
   - Dropped connections keep their seat for 25 s and the client reclaims it automatically (banner
-    shown meanwhile). Host leaves: another player becomes host. If the room is gone the player is sent
-    back to the menu with a message.
+    shown meanwhile). Host leaves: another player becomes host (dedicated server only; in P2P the
+    room lives in the host's browser, so guests return to the menu with "The host left the room").
+    If the room is gone the player is sent back to the menu with a message.
   - Hidden tabs: browsers stop `requestAnimationFrame` in background tabs. `HiddenTabKeeper` keeps the
     simulation running from a Web Worker timer while the tab is hidden, so your car keeps racing.
     It cannot help if the browser freezes or discards the tab (phone backgrounding, memory saver).
 
 ## Deploying
 
-The frontend and the realtime server are deployed separately, because Vercel cannot run a
-long-lived Socket.IO server.
+The frontend deploys to Vercel as a plain Next.js app (`npm run build`). Online play then works in one
+of two ways, chosen when the client bundle is built:
+
+| | Peer-to-peer (default) | Dedicated realtime server |
+| --- | --- | --- |
+| Enabled when | `NEXT_PUBLIC_REALTIME_URL` is **not** set | `NEXT_PUBLIC_REALTIME_URL` is set |
+| Setup | none | deploy `realtime/server.ts` (below) |
+| Who runs the room | the host's browser | the server |
+| Host leaves | room closes, guests go back to the menu | another player becomes host |
+
+### Peer-to-peer (no server)
+
+When a player creates a room, their browser registers a PeerJS id `chaoscircuit-<CODE>` with the free
+public PeerJS broker (`0.peerjs.com`, used only to exchange connection offers) and runs the same room
+and race logic as the server (`realtime/rooms.ts`, including anti-cheat and server-clock results)
+locally. Guests connect straight to the host over WebRTC data channels (Google's public STUN server
+for NAT traversal); car states use an unordered, no-retransmit channel, everything else a reliable one.
+The host plays through an in-memory loopback, so every player uses the same code path.
+
+Limits:
+
+- The host must keep the game open (backgrounding the tab on a phone may freeze it). If the host
+  leaves, the room ends.
+- There is no TURN relay: players behind strict/symmetric NATs, some mobile carriers and some
+  corporate or school networks may not be able to connect ("Couldn't reach that room ..."). Try
+  another network (e.g. Wi-Fi instead of mobile data), or deploy the dedicated server.
+- Depends on the public PeerJS broker being up. Guests reconnect automatically for a few seconds
+  after a drop; after that they return to the menu.
+
+Force a mode for testing with `?net=p2p` / `?net=socket` in the URL, or `NEXT_PUBLIC_NET_MODE=p2p|socket`
+at build time (`npm start`, the self-hosted custom server, needs `NEXT_PUBLIC_NET_MODE=socket` to use its
+built-in Socket.IO server; `npm run dev` uses it by default).
+
+### Dedicated realtime server (optional)
+
+When `NEXT_PUBLIC_REALTIME_URL` is set, the client ignores P2P and connects to that Socket.IO server
+instead. Use it when players hit NAT problems or rooms must survive the host leaving. It is deployed
+separately, because Vercel cannot run a long-lived Socket.IO server.
 
 ```
 Browser --https--> Vercel (Next.js frontend)
@@ -104,8 +145,7 @@ use it):
 | `NEXT_PUBLIC_REALTIME_URL` | The realtime server's public URL, with `https://` and no trailing slash, e.g. `https://chaos-circuit-realtime.onrender.com` |
 
 `NEXT_PUBLIC_*` values are compiled into the client bundle, so **redeploy** after adding or changing it.
-Without it the client connects to its own origin, which is right for `npm run dev` / `npm start`
-but not for Vercel.
+Without it a production build uses peer-to-peer (see above); remove it to go back to P2P.
 
 ### 3. Verify
 

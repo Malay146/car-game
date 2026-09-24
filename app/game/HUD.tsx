@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useGameStore } from "./store";
 import { startAudio } from "./AudioManager";
-import { changeRoomMap, createRoom, joinRoom, leaveRoomNet, requestStart } from "./net";
+import { changeRoomMap, createRoom, joinRoom, leaveRoomNet, netMode, requestStart } from "./net";
 import { MapCarousel } from "./MapCarousel";
 import { Minimap } from "./Minimap";
 import { Garage } from "./Garage";
@@ -62,12 +62,13 @@ function Menu() {
   const [joinCode, setJoinCode] = useState("");
   const [garageOpen, setGarageOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [pending, setPending] = useState<"create" | "join" | null>(null);
+  const busy = pending !== null;
   const totalLaps = useGameStore((s) => s.totalLaps);
 
-  const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+  const run = async (what: "create" | "join", fn: () => Promise<{ ok: boolean; error?: string }>) => {
     startAudio();
-    setBusy(true);
+    setPending(what);
     setError(null);
     try {
       const res = await fn();
@@ -75,7 +76,7 @@ function Menu() {
     } catch {
       setError("Could not connect to the server");
     }
-    setBusy(false);
+    setPending(null);
   };
 
   const { loading: sceneLoading } = useSceneLoading();
@@ -116,8 +117,8 @@ function Menu() {
           </button>
           {garageOpen && <Garage onClose={() => setGarageOpen(false)} />}
           <div className="flex flex-col items-center gap-3 rounded-xl bg-white/5 p-4 short:gap-2 short:p-3">
-            <button className={secondaryButton} disabled={busy} onClick={() => run(() => createRoom(profile, mapId))}>
-              Create online room
+            <button className={secondaryButton} disabled={busy} onClick={() => run("create", () => createRoom(profile, mapId))}>
+              {pending === "create" ? "Creating room…" : "Create online room"}
             </button>
             <div className="flex gap-2">
               <input
@@ -132,9 +133,9 @@ function Menu() {
               <button
                 className={secondaryButton}
                 disabled={busy || joinCode.length !== 4}
-                onClick={() => run(() => joinRoom(joinCode, profile))}
+                onClick={() => run("join", () => joinRoom(joinCode, profile))}
               >
-                Join
+                {pending === "join" ? "Connecting…" : "Join"}
               </button>
             </div>
             {error && <p className="max-w-xs text-center text-sm text-red-400">{error}</p>}
@@ -175,6 +176,11 @@ function Lobby() {
         </div>
         <div className="flex flex-col items-center gap-3 short:gap-2">
           <p className="text-center text-zinc-300">Share this code with friends (up to 4 players).</p>
+          {isHost && netMode() === "p2p" && (
+            <p className="max-w-sm text-center text-xs text-amber-200/80">
+              This room runs in your browser: keep this game open until everyone is done racing.
+            </p>
+          )}
           <p className="max-w-sm text-center text-xs text-zinc-400 short:hidden">
             Testing on one computer? Use two separate browser windows side by side. A background tab keeps racing, but may run slower.
           </p>

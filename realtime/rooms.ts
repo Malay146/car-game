@@ -1,5 +1,3 @@
-import { randomBytes } from "crypto";
-import type { Server, Socket } from "socket.io";
 import { generateCenterline, getTrackLength, nearestIndex } from "../app/game/trackPath";
 import {
   COUNTDOWN_MS,
@@ -12,11 +10,51 @@ import {
 } from "./protocol";
 
 /**
- * Room / race logic shared by the dev custom server (server.ts) and the standalone realtime
- * server (realtime/server.ts). Everything about a race that matters for fairness is decided here:
+ * Room / race logic shared by the dev custom server (server.ts), the standalone realtime
+ * server (realtime/server.ts) and the in-browser peer-to-peer host (realtime/hub.ts + app/game/p2p.ts).
+ * It only depends on the tiny transport interface below, never on Node modules, so it bundles for the browser. Everything about a race that matters for fairness is decided here:
  * positions are validated, progress and lap counts are recomputed from positions, and finish times
  * come from the server clock.
  */
+
+// --- transport interface (the subset of socket.io's Server / Socket used here) ----------------
+
+/* eslint-disable @typescript-eslint/no-explicit-any -- mirrors socket.io's untyped event arguments */
+export interface RealtimeEmitter {
+  emit(event: string, ...args: any[]): unknown;
+}
+
+export interface RealtimeSocket {
+  readonly id: string;
+  data: any;
+  on(event: string, listener: (...args: any[]) => void): unknown;
+  join(room: string): unknown;
+  leave(room: string): unknown;
+  /** Everyone in `room` except this socket. */
+  to(room: string): RealtimeEmitter & { volatile: RealtimeEmitter };
+}
+
+export interface RealtimeServer {
+  on(event: "connection", listener: (socket: RealtimeSocket) => void): unknown;
+  to(room: string): RealtimeEmitter;
+  sockets: { sockets: { get(id: string): RealtimeSocket | undefined; readonly size: number } };
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+export interface RealtimeOptions {
+  /** Room code generator (the P2P host pins the code its peer id was registered under). */
+  makeCode?: () => string;
+  maxRooms?: number;
+}
+
+type Socket = RealtimeSocket;
+
+/** Random hex id; Web Crypto exists in browsers and Node 20+. */
+function randomHex(bytes: number): string {
+  const buf = new Uint8Array(bytes);
+  globalThis.crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 const MAX_PLAYERS = 4;
 const MAX_ROOMS = 300;
@@ -168,10 +206,11 @@ export interface RealtimeStats {
   sockets: number;
 }
 
-export function registerRealtime(io: Server): { stats: () => RealtimeStats } {
+export function registerRealtime(io: RealtimeServer, opts: RealtimeOptions = {}): { stats: () => RealtimeStats } {
   const rooms = new Map<string, Room>();
+  const maxRooms = opts.maxRooms ?? MAX_ROOMS;
 
-  const makeCode = (): string => {
+  const randomCode = (): string => {
     const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     for (;;) {
       let code = "";
@@ -179,6 +218,7 @@ export function registerRealtime(io: Server): { stats: () => RealtimeStats } {
       if (!rooms.has(code)) return code;
     }
   };
+  const makeCode = opts.makeCode ?? randomCode;
 
   const broadcastPlayers = (room: Room) => io.to(room.code).emit("room:players", snapshot(room));
 
@@ -246,8 +286,8 @@ export function registerRealtime(io: Server): { stats: () => RealtimeStats } {
   };
 
   const newPlayer = (profile: WireProfile | undefined, fallbackName: string, fallbackPaint: string): Player => ({
-    id: randomBytes(6).toString("hex"),
-    token: randomBytes(16).toString("hex"),
+    id: randomHex(6),
+    token: randomHex(16),
     socketId: null,
     name: clean(profile?.name, fallbackName, 16),
     carId: clean(profile?.carId, "race", 30),
@@ -366,10 +406,10 @@ export function registerRealtime(io: Server): { stats: () => RealtimeStats } {
 
   // --- connection handlers -------------------------------------------------------------------
 
-  io.on("connection", (socket) => {
+  io.on("connection", (socket: Socket) => {
     socket.on("room:create", (profile: WireProfile, mapId: string, ack: (r: unknown) => void) => {
       if (typeof ack !== "function") return;
-      if (rooms.size >= MAX_ROOMS) return ack({ ok: false, error: "The server is busy, try again later" });
+      if (rooms.size >= maxRooms) return ack({ ok: false, error: "The server is busy, try again later" });
       leaveNow(socket);
       const player = newPlayer(profile, "Player 1", "#e0322f");
       const room: Room = {
@@ -484,7 +524,7 @@ export function registerRealtime(io: Server): { stats: () => RealtimeStats } {
     stats: () => ({
       rooms: rooms.size,
       players: [...rooms.values()].reduce((n, r) => n + r.players.length, 0),
-      sockets: io.engine.clientsCount,
+      sockets: io.sockets.sockets.size,
     }),
   };
 }
