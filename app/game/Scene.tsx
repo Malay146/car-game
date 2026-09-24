@@ -17,6 +17,10 @@ import { getGridSlot } from "./trackPath";
 import { CarTransform } from "./vehicleTypes";
 import { useGameStore } from "./store";
 import { getMap } from "./maps";
+import { useQualityLevel } from "./settings";
+import { QUALITY } from "./quality";
+import { PerfMonitor } from "./PerfMonitor";
+import { SceneProgress } from "./SceneProgress";
 
 const CAR_COLORS = ["#e0322f", "#f2c14e", "#3b82f6", "#22c55e"];
 const CAR_MODELS = [
@@ -33,6 +37,7 @@ export function Scene() {
   const raceId = useGameStore((s) => s.raceId);
   const myId = useGameStore((s) => s.myId);
   const roomPlayers = useGameStore((s) => s.roomPlayers);
+  const quality = QUALITY[useQualityLevel()];
 
   const playerTransform = useRef<CarTransform>({ x: 0, y: 0.6, z: 0, heading: 0, speedKmh: 0, vx: 0, vz: 0 });
   const botTransform = useRef<CarTransform>({ x: 0, y: 0.6, z: 0, heading: 0, speedKmh: 0, vx: 0, vz: 0 });
@@ -43,10 +48,14 @@ export function Scene() {
   const bot = getGridSlot(1);
 
   return (
-    <Canvas shadows camera={{ fov: 60, near: 0.1, far: 900 }}>
+    <>
+    <SceneProgress />
+    {/* `flat` = no tone mapping, matching the look the post-processing pipeline produces; `dpr` is capped per quality level. */}
+    <Canvas flat shadows={quality.shadows} dpr={[1, quality.dpr]} camera={{ fov: 60, near: 0.1, far: 900 }} gl={{ powerPreference: "high-performance" }} style={{ touchAction: "none" }}>
+      <PerfMonitor />
       <fog attach="fog" args={[theme.fog.color, theme.fog.near, theme.fog.far]} />
       <ambientLight intensity={theme.sun.ambient} />
-      <SunLight target={playerTransform} sun={theme.sun} />
+      <SunLight target={playerTransform} sun={theme.sun} shadows={quality.shadows} mapSize={quality.shadowMapSize} />
       <Environment key={mapId} files={theme.hdr} background environmentIntensity={theme.envIntensity} />
 
       <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
@@ -97,10 +106,18 @@ export function Scene() {
       <CameraRig target={playerTransform} />
       <HiddenTabKeeper />
 
-      <EffectComposer>
-        <Bloom intensity={0.35} luminanceThreshold={0.7} mipmapBlur />
-        <Vignette eskil={false} offset={0.15} darkness={0.6} />
-      </EffectComposer>
+      {quality.post === "full" && (
+        <EffectComposer multisampling={4}>
+          <Bloom intensity={0.35} luminanceThreshold={0.7} mipmapBlur />
+          <Vignette eskil={false} offset={0.15} darkness={0.6} />
+        </EffectComposer>
+      )}
+      {quality.post === "light" && (
+        <EffectComposer multisampling={0}>
+          <Vignette eskil={false} offset={0.15} darkness={0.6} />
+        </EffectComposer>
+      )}
     </Canvas>
+    </>
   );
 }

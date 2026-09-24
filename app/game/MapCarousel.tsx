@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { MAPS, getMap } from "./maps";
 import { generateCenterline, getTrackLength } from "./trackPath";
+import { useSettingsUi } from "./settingsUi";
 
 const PAD = 20;
 
@@ -30,7 +31,7 @@ function Preview({ id }: { id: string }) {
 
   return (
     <div
-      className="relative h-44 w-full overflow-hidden rounded-xl"
+      className="relative h-40 w-full overflow-hidden rounded-xl row:h-32 short:h-24"
       style={{ background: `linear-gradient(180deg, ${t.previewSky[0]}, ${t.previewSky[1]})` }}
     >
       <div className="absolute inset-x-0 bottom-0 top-1/3" style={{ background: t.previewGround, opacity: 0.9 }} />
@@ -64,7 +65,7 @@ export function MapCarousel({
   useEffect(() => {
     if (readOnly) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || useSettingsUi.getState().open) return;
       if (e.key === "ArrowLeft") go(-1);
       if (e.key === "ArrowRight") go(1);
     };
@@ -77,20 +78,20 @@ export function MapCarousel({
   const peak = Math.round(Math.max(...generateCenterline(map.id).map((p) => p.y)));
 
   return (
-    <div className="pointer-events-auto flex w-[26rem] max-w-[92vw] items-center gap-3">
+    <div className="pointer-events-auto flex w-[26rem] max-w-full items-center gap-2 sm:gap-3 short:w-[24rem]">
       {!readOnly && (
         <button
           aria-label="Previous map"
           onClick={() => go(-1)}
-          className="h-11 w-11 shrink-0 rounded-full bg-white/10 text-2xl font-black hover:bg-white/25"
+          className="h-12 w-12 shrink-0 rounded-full bg-white/10 text-2xl font-black hover:bg-white/25 active:bg-white/30"
         >
           ‹
         </button>
       )}
       <div className="min-w-0 flex-1 rounded-2xl bg-black/50 p-3 backdrop-blur-md">
         <Preview id={map.id} />
-        <div className="mt-2 text-center">
-          <div className="text-xl font-black tracking-tight">{map.name}</div>
+        <div className="mt-2 text-center short:mt-1">
+          <div className="text-xl font-black tracking-tight short:text-base">{map.name}</div>
           <div className="text-xs text-zinc-300">{map.tagline}</div>
           <div className="mt-2 flex justify-center gap-2 text-[11px] font-semibold">
             <span className="rounded-full bg-white/10 px-2 py-0.5">{km} km lap</span>
@@ -108,7 +109,7 @@ export function MapCarousel({
         <button
           aria-label="Next map"
           onClick={() => go(1)}
-          className="h-11 w-11 shrink-0 rounded-full bg-white/10 text-2xl font-black hover:bg-white/25"
+          className="h-12 w-12 shrink-0 rounded-full bg-white/10 text-2xl font-black hover:bg-white/25 active:bg-white/30"
         >
           ›
         </button>

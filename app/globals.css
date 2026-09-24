@@ -24,3 +24,32 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Responsive helpers: short = phone landscape, row = any landscape screen too short for a tall column layout. */
+@custom-variant short (@media (max-height: 520px));
+@custom-variant row (@media (orientation: landscape) and (max-height: 820px));
+@custom-variant coarse (@media (pointer: coarse));
+
+html,
+body {
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* no double-tap zoom */
+}
+
+/* The game canvas handles its own gestures: no page scroll, pinch-zoom or long-press menus. */
+canvas {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.safe-pad {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+}
