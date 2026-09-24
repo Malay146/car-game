@@ -44,6 +44,7 @@ function Menu() {
   const startOffline = useGameStore((s) => s.startOffline);
   const mapId = useGameStore((s) => s.mapId);
   const selectMap = useGameStore((s) => s.selectMap);
+  const profile = useGameStore((s) => s.profile);
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,7 +80,7 @@ function Menu() {
         Play vs Bot
       </button>
       <div className="flex flex-col items-center gap-3 rounded-xl bg-white/5 p-4">
-        <button className={secondaryButton} disabled={busy} onClick={() => run(() => createRoom("Player", mapId))}>
+        <button className={secondaryButton} disabled={busy} onClick={() => run(() => createRoom(profile, mapId))}>
           Create online room
         </button>
         <div className="flex gap-2">
@@ -92,7 +93,7 @@ function Menu() {
           <button
             className={secondaryButton}
             disabled={busy || joinCode.length !== 4}
-            onClick={() => run(() => joinRoom(joinCode, "Player"))}
+            onClick={() => run(() => joinRoom(joinCode, profile))}
           >
             Join
           </button>

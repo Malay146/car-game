@@ -22,10 +22,21 @@ function findFreePort(start: number): Promise<number> {
 
 const MAX_PLAYERS = 4;
 
+interface Profile {
+  name?: string;
+  carId?: string;
+  paint?: string;
+}
+
 interface RoomPlayer {
   id: string;
   name: string;
+  carId: string;
+  paint: string;
 }
+
+const clean = (v: unknown, fallback: string, max = 20) =>
+  typeof v === "string" && v.trim() ? v.trim().slice(0, max) : fallback;
 
 interface Room {
   code: string;
@@ -81,13 +92,13 @@ async function main() {
   };
 
   io.on("connection", (socket) => {
-    socket.on("room:create", (name: string, mapId: string, ack: (r: unknown) => void) => {
+    socket.on("room:create", (profile: Profile, mapId: string, ack: (r: unknown) => void) => {
       leave(socket);
       const code = makeCode();
       const room: Room = {
         code,
         hostId: socket.id,
-        players: [{ id: socket.id, name: name || "Player 1" }],
+        players: [{ id: socket.id, name: clean(profile?.name, "Player 1"), carId: clean(profile?.carId, "race", 30), paint: clean(profile?.paint, "#e0322f", 9) }],
         finished: [],
         mapId: mapId || "circuit",
       };
@@ -97,12 +108,17 @@ async function main() {
       ack({ ok: true, code, id: socket.id, players: room.players, hostId: room.hostId, mapId: room.mapId });
     });
 
-    socket.on("room:join", (code: string, name: string, ack: (r: unknown) => void) => {
+    socket.on("room:join", (code: string, profile: Profile, ack: (r: unknown) => void) => {
       const room = rooms.get((code || "").toUpperCase());
       if (!room) return ack({ ok: false, error: "Room not found" });
       if (room.players.length >= MAX_PLAYERS) return ack({ ok: false, error: "Room is full" });
       leave(socket);
-      room.players.push({ id: socket.id, name: name || `Player ${room.players.length + 1}` });
+      room.players.push({
+        id: socket.id,
+        name: clean(profile?.name, `Player ${room.players.length + 1}`),
+        carId: clean(profile?.carId, "race", 30),
+        paint: clean(profile?.paint, "#3b82f6", 9),
+      });
       roomOf.set(socket.id, room.code);
       socket.join(room.code);
       ack({ ok: true, code: room.code, id: socket.id, players: room.players, hostId: room.hostId, mapId: room.mapId });

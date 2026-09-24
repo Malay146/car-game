@@ -18,9 +18,14 @@ export interface NetState {
   t?: number;
 }
 
-export interface RoomPlayer {
-  id: string;
+export interface Profile {
   name: string;
+  carId: string;
+  paint: string;
+}
+
+export interface RoomPlayer extends Profile {
+  id: string;
 }
 
 interface JoinAck {
@@ -71,18 +76,18 @@ function applyJoin(ack: JoinAck) {
   }
 }
 
-export function createRoom(name: string, mapId: string): Promise<JoinAck> {
+export function createRoom(profile: Profile, mapId: string): Promise<JoinAck> {
   return new Promise((resolve) => {
-    getSocket().emit("room:create", name, mapId, (ack: JoinAck) => {
+    getSocket().emit("room:create", profile, mapId, (ack: JoinAck) => {
       applyJoin(ack);
       resolve(ack);
     });
   });
 }
 
-export function joinRoom(code: string, name: string): Promise<JoinAck> {
+export function joinRoom(code: string, profile: Profile): Promise<JoinAck> {
   return new Promise((resolve) => {
-    getSocket().emit("room:join", code, name, (ack: JoinAck) => {
+    getSocket().emit("room:join", code, profile, (ack: JoinAck) => {
       applyJoin(ack);
       resolve(ack);
     });

@@ -18,6 +18,14 @@ interface Telemetry {
 interface RoomPlayer {
   id: string;
   name: string;
+  carId: string;
+  paint: string;
+}
+
+export interface PlayerProfile {
+  name: string;
+  carId: string;
+  paint: string;
 }
 
 interface GameStore {
@@ -25,6 +33,9 @@ interface GameStore {
   mode: Mode;
   mapId: string;
   selectMap: (id: string) => void;
+  /** The local player's chosen name, car model id and paint colour. */
+  profile: PlayerProfile;
+  setProfile: (p: Partial<PlayerProfile>) => void;
   raceId: number; // bumped on every (re)start so the 3D scene remounts fresh cars
   raceState: RaceState;
   countdownValue: number;
@@ -109,6 +120,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     phase: "menu",
     mode: "offline",
     mapId: DEFAULT_MAP_ID,
+    profile: { name: "Player", carId: "race", paint: "#e0322f" },
+    setProfile: (p) => set((s) => ({ profile: { ...s.profile, ...p } })),
     selectMap: (id) => {
       const mapId = getMap(id).id;
       setActiveMap(mapId);
