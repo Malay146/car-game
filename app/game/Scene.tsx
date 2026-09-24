@@ -16,14 +16,9 @@ import { getGridSlot } from "./trackPath";
 import { CarTransform } from "./vehicleTypes";
 import { useGameStore } from "./store";
 import { getMap } from "./maps";
+import { getCar, isHexColor, pickOpponentLook } from "./cars";
 
-const CAR_COLORS = ["#e0322f", "#f2c14e", "#3b82f6", "#22c55e"];
-const CAR_MODELS = [
-  "/models/cars/race.glb",
-  "/models/cars/race-future.glb",
-  "/models/cars/hatchback.glb",
-  "/models/cars/sedan.glb",
-];
+const paintOf = (car: ReturnType<typeof getCar>, paint: unknown) => (isHexColor(paint) ? paint : car.defaultPaint);
 
 export function Scene() {
   const mapId = useGameStore((s) => s.mapId);
@@ -32,6 +27,7 @@ export function Scene() {
   const raceId = useGameStore((s) => s.raceId);
   const myId = useGameStore((s) => s.myId);
   const roomPlayers = useGameStore((s) => s.roomPlayers);
+  const profile = useGameStore((s) => s.profile);
 
   const playerTransform = useRef<CarTransform>({ x: 0, y: 0.6, z: 0, heading: 0, speedKmh: 0, vx: 0, vz: 0 });
   const botTransform = useRef<CarTransform>({ x: 0, y: 0.6, z: 0, heading: 0, speedKmh: 0, vx: 0, vz: 0 });
@@ -40,6 +36,10 @@ export function Scene() {
   const mySlot = online ? Math.max(0, roomPlayers.findIndex((p) => p.id === myId)) : 0;
   const me = getGridSlot(mySlot);
   const bot = getGridSlot(1);
+  const myCar = getCar(profile.carId);
+  const myPaint = paintOf(myCar, profile.paint);
+  const botLook = pickOpponentLook(raceId, myCar.id, myPaint);
+  const botCar = getCar(botLook.carId);
 
   return (
     <Canvas shadows camera={{ fov: 60, near: 0.1, far: 900 }}>
@@ -55,8 +55,9 @@ export function Scene() {
         <group key={`${mapId}-${raceId}`}>
           <Car
             isPlayer
-            model={CAR_MODELS[mySlot % CAR_MODELS.length]}
-            color={CAR_COLORS[mySlot % CAR_COLORS.length]}
+            model={myCar.url}
+            color={myPaint}
+            stats={myCar.stats}
             startX={me.x}
             startZ={me.z}
             startHeading={me.heading}
@@ -66,12 +67,13 @@ export function Scene() {
             roomPlayers.map((p, i) => {
               if (p.id === myId) return null;
               const g = getGridSlot(i);
+              const rc = getCar(p.carId);
               return (
                 <RemoteCar
                   key={p.id}
                   id={p.id}
-                  model={CAR_MODELS[i % CAR_MODELS.length]}
-                  color={CAR_COLORS[i % CAR_COLORS.length]}
+                  model={rc.url}
+                  color={paintOf(rc, p.paint)}
                   startX={g.x}
                   startZ={g.z}
                   startHeading={g.heading}
@@ -81,8 +83,9 @@ export function Scene() {
           ) : (
             <Car
               isPlayer={false}
-              model={CAR_MODELS[1]}
-              color={CAR_COLORS[1]}
+              model={botCar.url}
+              color={botLook.paint}
+              stats={botCar.stats}
               startX={bot.x}
               startZ={bot.z}
               startHeading={bot.heading}

@@ -16,22 +16,19 @@ import { playBoost, playCrash } from "./AudioManager";
 import { sendFinish, sendState } from "./net";
 import { markers, setMarker } from "./markers";
 import { getMap } from "./maps";
+import { useQualityLevel } from "./settings";
+import { ShadowBlob } from "./ShadowBlob";
+import { CarStats, NEUTRAL_STATS } from "./cars";
+import { cloneCar, findWheels, tintPaint, carSize } from "./carModel";
 import {
   activateBoost,
   addSkid,
+  addShake,
   emitParticle,
   isBoosting,
   resetFx,
 } from "./fx";
 
-const WHEEL_DEFS = [
-  { name: "wheel-front-left", front: true },
-  { name: "wheel-front-right", front: true },
-  { name: "wheel-back-left", front: false },
-  { name: "wheel-back-right", front: false },
-] as const;
-
-const WHEEL_RADIUS = 0.3;
 const SUSPENSION_REST = 0.26;
 const DT = 1 / 60;
 
@@ -55,28 +52,25 @@ interface CarProps {
   startZ: number;
   startHeading: number;
   transformRef: RefObject<CarTransform>;
+  /** Per-car handling multipliers (accel, top speed, grip, steering); omitted = baseline. */
+  stats?: CarStats;
 }
 
-export function Car({ isPlayer, model, color, startX, startZ, startHeading, transformRef }: CarProps) {
+export function Car({ isPlayer, model, color, startX, startZ, startHeading, transformRef, stats = NEUTRAL_STATS }: CarProps) {
   const { world, rapier } = useRapier();
   const bodyRef = useRef<RapierRigidBody | null>(null);
   const controllerRef = useRef<DynamicRayCastVehicleController | null>(null);
   const visualRef = useRef<THREE.Group | null>(null);
-  const wheelMeshes = useRef<(THREE.Object3D | null)[]>([null, null, null, null]);
+  const quality = useQualityLevel();
 
   const { scene } = useGLTF(model);
-  const carClone = useMemo(() => scene.clone(true), [scene]);
+  const carInst = useMemo(() => cloneCar(scene, quality), [scene, quality]);
+  const carClone = carInst.root;
 
-  const wheelDefs = useMemo(
-    () =>
-      WHEEL_DEFS.map((w) => {
-        const n = carClone.getObjectByName(w.name);
-        return { ...w, x: n?.position.x ?? 0.3, y: n?.position.y ?? WHEEL_RADIUS, z: n?.position.z ?? 0 };
-      }),
-    [carClone]
-  );
+  const wheelDefs = useMemo(() => findWheels(carClone), [carClone]);
+  const wheelRadius = useMemo(() => wheelDefs.reduce((a, w) => a + w.radius, 0) / wheelDefs.length, [wheelDefs]);
   const dims = useMemo(() => {
-    const size = new THREE.Box3().setFromObject(carClone).getSize(new THREE.Vector3());
+    const size = carSize(carClone);
     const hx = (size.x / 2) * 0.92;
     const hz = (size.z / 2) * 0.94;
     // Hull with chamfered nose and tail: any low edge slides under it and lifts the car instead of stopping it.
@@ -144,21 +138,20 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
   });
 
   useEffect(() => {
-    wheelDefs.forEach((w, i) => {
-      const mesh = carClone.getObjectByName(w.name) ?? null;
-      wheelMeshes.current[i] = mesh;
-      if (mesh) mesh.rotation.order = "YXZ";
+    wheelDefs.forEach((w) => {
+      if (w.node) w.node.rotation.order = "YXZ";
     });
-    const body = carClone.getObjectByName("body");
-    if (body instanceof THREE.Mesh && color) {
-      const mat = (body.material as THREE.MeshStandardMaterial).clone();
-      mat.color = new THREE.Color(color);
-      body.material = mat;
-    }
-    carClone.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.castShadow = true;
-    });
-  }, [carClone, wheelDefs, color]);
+  }, [wheelDefs]);
+
+  useEffect(() => {
+    tintPaint(carInst.paint, color);
+  }, [carInst, color]);
+
+  useEffect(() => {
+    return () => {
+      carInst.paint.forEach((m) => m.dispose());
+    };
+  }, [carInst]);
 
   useEffect(() => {
     const out = transformRef.current;
@@ -190,7 +183,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
         { x: 0, y: -1, z: 0 },
         { x: 1, y: 0, z: 0 },
         SUSPENSION_REST,
-        WHEEL_RADIUS
+        w.radius
       );
     });
     for (let i = 0; i < wheelDefs.length; i++) {
@@ -250,6 +243,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       if ((dvh > 5 || dvy > 10) && nowMs - s.impactAt > 300) {
         s.impactAt = nowMs;
         playCrash(Math.min(1, Math.max(0.15, strength)));
+        addShake(Math.min(1, strength * 0.9));
       }
     }
 
@@ -312,10 +306,10 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     let vfN = vf;
     let vlN = vl;
     if (grounded) {
-      const vmax = boosting ? VMAX * 1.3 : VMAX;
+      const vmax = (boosting ? VMAX * 1.3 : VMAX) * stats.topSpeed;
       let a = 0;
       if (input.throttle > 0) {
-        a += input.throttle * ACCEL * (boosting ? 2 : 1) * Math.max(0, 1 - Math.pow(Math.max(vf, 0) / vmax, 2));
+        a += input.throttle * ACCEL * stats.accel * (boosting ? 2 : 1) * Math.max(0, 1 - Math.pow(Math.max(vf, 0) / vmax, 2));
       } else if (input.throttle < 0) {
         if (vf > 1) a -= BRAKE_DECEL * 0.9 * -input.throttle;
         else a += input.throttle * 14 * Math.max(0, 1 - Math.pow(Math.abs(vf) / REVERSE_MAX, 2));
@@ -326,7 +320,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       const reversing = input.throttle < 0 && vf <= 1;
       if (!reversing) vfN = Math.sign(vfN) * Math.max(0, Math.abs(vfN) - passive * DT);
 
-      let G = landing ? 45 : s.sliding ? GRIP_SLIDE : GRIP;
+      let G = landing ? 45 : s.sliding ? GRIP_SLIDE : GRIP * stats.grip;
       if (s.sliding && slipRatio > 1.1) G = 6;
       const aMax = s.sliding ? 20 : 48;
       vlN = vl + clamp(-vl * G, -aMax, aMax) * DT;
@@ -390,7 +384,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     if (grounded) {
       const dir = vf >= -0.5 ? 1 : -1;
       const sp = Math.abs(vf);
-      let wmax = MAX_YAW / (1 + Math.pow(sp / 28, 2));
+      let wmax = (MAX_YAW * stats.handling) / (1 + Math.pow(sp / 28, 2));
       if (sp < 1.5) wmax *= sp / 1.5;
       let target = -input.steer * wmax * dir * (s.sliding ? 1.75 : 1);
       if (input.handbrake > 0.5 && speed > 8) target *= 1.35;
@@ -503,7 +497,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     }
 
     // Telemetry
-    const gearSpan = (VMAX * 1.05) / 5;
+    const gearSpan = (VMAX * stats.topSpeed * 1.05) / 5;
     const gear = Math.min(4, Math.floor(Math.abs(vfN) / gearSpan));
     const within = clamp((Math.abs(vfN) - gear * gearSpan) / gearSpan, 0, 1);
     s.rpm += (0.28 + 0.72 * within + (input.throttle > 0 ? 0.08 : 0) - s.rpm) * 0.25;
@@ -595,14 +589,14 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
   useFrame((_, delta) => {
     const s = sim.current;
     const controller = controllerRef.current;
-    s.wheelSpin += (s.speed * delta) / WHEEL_RADIUS;
+    s.wheelSpin += (s.speed * delta) / wheelRadius;
     wheelDefs.forEach((w, i) => {
-      const mesh = wheelMeshes.current[i];
+      const mesh = w.node;
       if (!mesh) return;
       const susp = controller?.wheelSuspensionLength(i) ?? SUSPENSION_REST;
       mesh.position.set(w.x, w.y + SUSPENSION_REST - susp, w.z);
       mesh.rotation.y = w.front ? s.steerVisual : 0;
-      mesh.rotation.x = s.wheelSpin;
+      mesh.rotation.x = (s.wheelSpin * wheelRadius) / w.radius;
     });
     const v = visualRef.current;
     if (v) {
@@ -627,6 +621,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       <group ref={visualRef}>
         <primitive object={carClone} />
       </group>
+      <ShadowBlob width={dims.hx * 2.3} length={dims.hz * 2.15} />
       {headlights && (
         <>
           <primitive object={lightTarget} />
@@ -638,4 +633,3 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
 }
 
 useGLTF.preload("/models/cars/race.glb");
-useGLTF.preload("/models/cars/race-future.glb");

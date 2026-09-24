@@ -4,7 +4,7 @@ import { RefObject, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { CarTransform } from "./vehicleTypes";
-import { isBoosting } from "./fx";
+import { isBoosting, shake } from "./fx";
 
 const HEIGHT = 2.9;
 const LOOK_HEIGHT = 1.0;
@@ -55,6 +55,14 @@ export function CameraRig({ target }: { target: RefObject<CarTransform> }) {
     }
     camera.position.copy(pos.current);
     camera.lookAt(look.current);
+    // Small decaying shake after hard landings / impacts.
+    if (shake.amp > 0.01) {
+      const a = shake.amp * shake.amp * 0.32;
+      camera.position.x += (Math.random() - 0.5) * a;
+      camera.position.y += (Math.random() - 0.5) * a;
+      camera.position.z += (Math.random() - 0.5) * a;
+      shake.amp *= Math.exp(-5.5 * delta);
+    } else shake.amp = 0;
   });
 
   return null;

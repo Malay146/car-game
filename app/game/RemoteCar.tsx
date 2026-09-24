@@ -9,9 +9,8 @@ import * as THREE from "three";
 import { remoteStates } from "./net";
 import { markers, setMarker } from "./markers";
 
-const FRONT_WHEELS = ["wheel-front-left", "wheel-front-right"];
-const ALL_WHEELS = [...FRONT_WHEELS, "wheel-back-left", "wheel-back-right"];
-const WHEEL_RADIUS = 0.3;
+import { useQualityLevel } from "./settings";
+import { cloneCar, findWheels, tintPaint } from "./carModel";
 
 interface Props {
   id: string;
@@ -29,9 +28,11 @@ interface Props {
  */
 export function RemoteCar({ id, model, color, startX, startZ, startHeading }: Props) {
   const bodyRef = useRef<RapierRigidBody | null>(null);
+  const quality = useQualityLevel();
   const { scene } = useGLTF(model);
-  const clone = useMemo(() => scene.clone(true), [scene]);
-  const wheels = useRef<THREE.Object3D[]>([]);
+  const carInst = useMemo(() => cloneCar(scene, quality), [scene, quality]);
+  const clone = carInst.root;
+  const wheels = useMemo(() => findWheels(clone), [clone]);
   const wheelSpin = useRef(0);
 
   const pos = useRef(new THREE.Vector3(startX, 0.6, startZ));
@@ -39,17 +40,20 @@ export function RemoteCar({ id, model, color, startX, startZ, startHeading }: Pr
   const target = useMemo(() => ({ pos: new THREE.Vector3(), quat: new THREE.Quaternion() }), []);
 
   useEffect(() => {
-    wheels.current = ALL_WHEELS.map((n) => clone.getObjectByName(n)).filter(
-      (o): o is THREE.Object3D => !!o
-    );
-    wheels.current.forEach((w) => (w.rotation.order = "YXZ"));
-    const body = clone.getObjectByName("body");
-    if (body instanceof THREE.Mesh) {
-      const mat = (body.material as THREE.MeshStandardMaterial).clone();
-      mat.color = new THREE.Color(color);
-      body.material = mat;
-    }
-  }, [clone, color]);
+    wheels.forEach((w) => {
+      if (w.node) w.node.rotation.order = "YXZ";
+    });
+  }, [wheels]);
+
+  useEffect(() => {
+    tintPaint(carInst.paint, color);
+  }, [carInst, color]);
+
+  useEffect(() => {
+    return () => {
+      carInst.paint.forEach((m) => m.dispose());
+    };
+  }, [carInst]);
 
   const gem = useRef<THREE.Mesh | null>(null);
 
@@ -77,10 +81,11 @@ export function RemoteCar({ id, model, color, startX, startZ, startHeading }: Pr
       const heading = Math.atan2(2 * (target.quat.w * target.quat.y + target.quat.x * target.quat.z), 1 - 2 * (target.quat.y * target.quat.y + target.quat.z * target.quat.z));
       setMarker(id, pos.current.x, pos.current.z, heading, color, snap.total);
 
-      wheelSpin.current += ((snap.speedKmh / 3.6) * delta) / WHEEL_RADIUS;
-      wheels.current.forEach((w) => {
-        w.rotation.x = wheelSpin.current;
-        w.rotation.y = FRONT_WHEELS.includes(w.name) ? snap.steer : 0;
+      wheelSpin.current += (snap.speedKmh / 3.6) * delta;
+      wheels.forEach((w) => {
+        if (!w.node) return;
+        w.node.rotation.x = wheelSpin.current / w.radius;
+        w.node.rotation.y = w.front ? snap.steer : 0;
       });
     }
     body.setNextKinematicTranslation(pos.current);

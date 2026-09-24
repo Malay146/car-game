@@ -1,5 +1,11 @@
 const timers = { boostUntil: 0 };
 
+/** Camera shake amplitude 0..1: bumped on hard impacts and decayed by the camera rig. */
+export const shake = { amp: 0 };
+export const addShake = (a: number) => {
+  shake.amp = Math.min(1, Math.max(shake.amp, a));
+};
+
 export const activateBoost = (now: number, ms = 2200) => {
   timers.boostUntil = now + ms;
 };
@@ -51,6 +57,7 @@ export function addSkid(x: number, y: number, z: number, heading: number) {
 
 export function resetFx() {
   timers.boostUntil = 0;
+  shake.amp = 0;
   particles.length = 0;
   skids.length = 0;
   skidHead = 0;

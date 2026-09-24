@@ -10,6 +10,7 @@ import { getTerrain } from "./terrain";
 import { useGameStore } from "./store";
 import { MapFeatures } from "./MapFeatures";
 import { InstancedProps, Placement, Prop } from "./Props";
+import { TrackDecor } from "./TrackDecor";
 
 const ROAD_Y = 0.03;
 const SHOULDER_EDGE = 9.9;
@@ -128,6 +129,32 @@ function makeLineTexture(): THREE.CanvasTexture {
   c.height = 256;
   const g = c.getContext("2d")!;
   g.clearRect(0, 0, 256, 256);
+  // subtle wear: darker tyre lanes and worn edges (broken up so the 10 m tile is hard to spot)
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (const cx of [72, 184]) {
+    for (let y = 0; y < 256; ) {
+      const h = 18 + rnd() * 60;
+      const grad = g.createLinearGradient(cx - 22, 0, cx + 22, 0);
+      const a = 0.05 + rnd() * 0.09;
+      grad.addColorStop(0, "rgba(0,0,0,0)");
+      grad.addColorStop(0.5, `rgba(0,0,0,${a.toFixed(3)})`);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      g.fillStyle = grad;
+      g.fillRect(cx - 22, y, 44, h);
+      y += h + rnd() * 24;
+    }
+  }
+  const edgeL = g.createLinearGradient(0, 0, 26, 0);
+  edgeL.addColorStop(0, "rgba(0,0,0,0.16)");
+  edgeL.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = edgeL;
+  g.fillRect(0, 0, 26, 256);
+  const edgeR = g.createLinearGradient(256, 0, 230, 0);
+  edgeR.addColorStop(0, "rgba(0,0,0,0.16)");
+  edgeR.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = edgeR;
+  g.fillRect(230, 0, 26, 256);
   g.fillStyle = "rgba(255,255,255,0.92)";
   g.fillRect(8, 0, 6, 256); // left edge line
   g.fillRect(242, 0, 6, 256); // right edge line
@@ -331,7 +358,6 @@ export function Track() {
 
   const start = path[0];
   const [snx, snz] = normalOf(start);
-  const standOff = TRACK.wallOffset + 9;
   const neon = !!theme.neon;
 
   return (
@@ -398,20 +424,6 @@ export function Track() {
       </mesh>
       <Prop url="/models/overhead.glb" x={start.x} z={start.z} rot={start.heading} scale={8.4} />
       <Prop
-        url="/models/grandStand.glb"
-        x={start.x + snx * standOff}
-        z={start.z + snz * standOff}
-        rot={start.heading + Math.PI / 2}
-        scale={9}
-      />
-      <Prop
-        url="/models/grandStand.glb"
-        x={start.x + snx * standOff + Math.sin(start.heading) * 16}
-        z={start.z + snz * standOff + Math.cos(start.heading) * 16}
-        rot={start.heading + Math.PI / 2}
-        scale={9}
-      />
-      <Prop
         url="/models/bannerTowerRed.glb"
         x={start.x - snx * (TRACK.wallOffset + 3) + Math.sin(start.heading) * 10}
         z={start.z - snz * (TRACK.wallOffset + 3) + Math.cos(start.heading) * 10}
@@ -438,6 +450,7 @@ export function Track() {
       <InstancedProps url="/models/real/old_tyre.glb" placements={scenery.tyres} castShadow />
 
       <MapFeatures />
+      <TrackDecor mapId={mapId} />
     </group>
   );
 }

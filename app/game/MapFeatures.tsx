@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import * as THREE from "three";
 import { RigidBody, TrimeshCollider } from "@react-three/rapier";
-import { generateCenterline, getCheckpoints, nearestIndex } from "./trackPath";
+import { generateCenterline, nearestIndex } from "./trackPath";
 import { getMap } from "./maps";
 import { useGameStore } from "./store";
 
@@ -102,13 +102,6 @@ export function MapFeatures() {
     [mapId]
   );
   const stripes = useMemo(() => stripeTexture(), []);
-  const gates = useMemo(() => {
-    const path = generateCenterline(mapId);
-    return getCheckpoints(mapId)
-      .slice(1)
-      .map((i) => path[i]);
-  }, [mapId]);
-  const accent = getMap(mapId).theme.kerb[0];
 
   return (
     <group>
@@ -116,20 +109,6 @@ export function MapFeatures() {
         <mesh key={i} geometry={r.geo} castShadow receiveShadow>
           <meshStandardMaterial map={stripes} roughness={0.6} side={THREE.DoubleSide} />
         </mesh>
-      ))}
-      {gates.map((p, i) => (
-        <group key={`cp${i}`} position={[p.x, p.y, p.z]} rotation={[0, p.heading, 0]}>
-          {[-6.4, 6.4].map((x) => (
-            <mesh key={x} position={[x, 2.6, 0]}>
-              <cylinderGeometry args={[0.22, 0.22, 5.2, 8]} />
-              <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.7} />
-            </mesh>
-          ))}
-          <mesh position={[0, 5.1, 0]}>
-            <boxGeometry args={[13, 0.5, 0.4]} />
-            <meshStandardMaterial color={accent} emissive={accent} emissiveIntensity={0.7} />
-          </mesh>
-        </group>
       ))}
       <RigidBody type="fixed" colliders={false} friction={0.6}>
         {ramps.map((r, i) => (

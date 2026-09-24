@@ -6,6 +6,10 @@ import { startAudio } from "./AudioManager";
 import { changeRoomMap, createRoom, joinRoom, leaveRoomNet, requestStart } from "./net";
 import { MapCarousel } from "./MapCarousel";
 import { Minimap } from "./Minimap";
+import { Garage } from "./Garage";
+import { ProfileSync } from "./ProfileSync";
+import { SpeedFx } from "./SpeedFx";
+import { getCar } from "./cars";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -46,6 +50,7 @@ function Menu() {
   const selectMap = useGameStore((s) => s.selectMap);
   const profile = useGameStore((s) => s.profile);
   const [joinCode, setJoinCode] = useState("");
+  const [garageOpen, setGarageOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const totalLaps = useGameStore((s) => s.totalLaps);
@@ -79,6 +84,11 @@ function Menu() {
       >
         Play vs Bot
       </button>
+      <button className={secondaryButton} onClick={() => setGarageOpen(true)}>
+        <span className="mr-2 inline-block h-3 w-3 rounded-full align-middle ring-1 ring-white/50" style={{ background: profile.paint }} />
+        Garage: {getCar(profile.carId).name}
+      </button>
+      {garageOpen && <Garage onClose={() => setGarageOpen(false)} />}
       <div className="flex flex-col items-center gap-3 rounded-xl bg-white/5 p-4">
         <button className={secondaryButton} disabled={busy} onClick={() => run(() => createRoom(profile, mapId))}>
           Create online room
@@ -180,6 +190,8 @@ export function HUD() {
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none font-sans text-white">
+      <ProfileSync />
+      {playing && <SpeedFx />}
       {phase === "menu" && <Menu />}
       {phase === "lobby" && <Lobby />}
 
