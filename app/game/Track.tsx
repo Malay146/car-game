@@ -200,24 +200,29 @@ export function Track() {
   const quality = QUALITY[useQualityLevel()];
 
   const g = theme.ground.key;
-  const [asphaltD, asphaltN, asphaltR, groundD, groundN, groundR] = useTexture(
-    [
-      "/tex/asphalt_diff.jpg",
-      "/tex/asphalt_nor.jpg",
-      "/tex/asphalt_rough.jpg",
-      `/tex/${g}_diff.jpg`,
-      `/tex/${g}_nor.jpg`,
-      `/tex/${g}_rough.jpg`,
-    ],
-    (textures) => {
-      (textures as THREE.Texture[]).forEach((t, i) => {
-        t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.anisotropy = quality.anisotropy;
-        if (i === 0 || i === 3) t.colorSpace = THREE.SRGBColorSpace;
-        t.needsUpdate = true;
-      });
-    }
-  );
+  const lite = quality.lightMaterials;
+  // Low: two small diffuse maps only (about 0.2 MB to download, ~3 MB of GPU memory instead of ~30 MB).
+  const texUrls = lite
+    ? ["/tex/lo/asphalt_diff.jpg", `/tex/lo/${g}_diff.jpg`]
+    : [
+        "/tex/asphalt_diff.jpg",
+        "/tex/asphalt_nor.jpg",
+        "/tex/asphalt_rough.jpg",
+        `/tex/${g}_diff.jpg`,
+        `/tex/${g}_nor.jpg`,
+        `/tex/${g}_rough.jpg`,
+      ];
+  const textures = useTexture(texUrls, (loaded) => {
+    (loaded as THREE.Texture[]).forEach((t, i) => {
+      t.wrapS = t.wrapT = THREE.RepeatWrapping;
+      t.anisotropy = quality.anisotropy;
+      if (lite || i === 0 || i === 3) t.colorSpace = THREE.SRGBColorSpace;
+      t.needsUpdate = true;
+    });
+  }) as THREE.Texture[];
+  const [asphaltD, asphaltN, asphaltR, groundD, groundN, groundR] = lite
+    ? [textures[0], undefined, undefined, textures[1], undefined, undefined]
+    : textures;
 
   const geo = useMemo(() => {
     const w = TRACK.roadWidth;
@@ -329,7 +334,8 @@ export function Track() {
       return { x, z, y: terrain.heightAt(x, z), rot, scale: sc };
     };
     const lamps: Placement[] = [];
-    const lampEvery = theme.neon ? 20 : 34;
+    const dress = quality.dressing;
+    const lampEvery = Math.round((theme.neon ? 20 : 34) / dress);
     for (let i = 8, k = 0; i < path.length; i += lampEvery, k++) {
       const sd = k % 2 === 0 ? 1 : -1;
       lamps.push(at(i, sd, TRACK.wallOffset + 3, path[i].heading + (sd > 0 ? Math.PI : 0), 1.5));
@@ -339,7 +345,7 @@ export function Track() {
     const crates: Placement[] = [];
     const boxes: Placement[] = [];
     const tyres: Placement[] = [];
-    for (let k = 0; k < 16; k++) {
+    for (let k = 0; k < Math.round(16 * dress); k++) {
       const i = Math.floor(rand() * path.length);
       const sd = side();
       const off = TRACK.wallOffset + 3.5 + rand() * 3;
@@ -348,23 +354,23 @@ export function Track() {
         list.push(at(i + j * 2, sd, off + (j % 2) * 1.1, rand() * 6.28, 1.5));
       }
     }
-    for (let k = 0; k < 12; k++) {
+    for (let k = 0; k < Math.round(12 * dress); k++) {
       const i = Math.floor(rand() * path.length);
       crates.push(at(i, side(), TRACK.wallOffset + 3.5 + rand() * 2.5, rand() * 6.28, 1.7));
     }
-    for (let k = 0; k < 8; k++) {
+    for (let k = 0; k < Math.round(8 * dress); k++) {
       const i = Math.floor(rand() * path.length);
       const sd = side();
       boxes.push(at(i, sd, TRACK.wallOffset + 3.5, path[i].heading + (sd > 0 ? Math.PI : 0), 1.7));
     }
-    for (let i = 0; i < path.length && tyres.length < 110; i += 3) {
+    for (let i = 0; i < path.length && tyres.length < 110 * dress; i += Math.round(3 / dress)) {
       if (Math.abs(path[i].curvature) < 0.03) continue;
       for (const sd of [-1, 1]) {
         tyres.push(at(i, sd, TRACK.wallOffset + 2.1, path[i].heading + Math.PI / 2, 1.7));
       }
     }
     return { groups, lining, lamps, barrelsA, barrelsB, crates, boxes, tyres };
-  }, [path, theme, mapId, terrain, quality.sceneryDensity, quality.groundCover]);
+  }, [path, theme, mapId, terrain, quality.sceneryDensity, quality.groundCover, quality.dressing]);
 
   const start = path[0];
   const [snx, snz] = normalOf(start);
@@ -376,7 +382,11 @@ export function Track() {
   return (
     <group>
       <mesh geometry={terrainGeo} receiveShadow>
-        <meshStandardMaterial map={groundD} normalMap={groundN} roughnessMap={groundR} color={theme.ground.tint} vertexColors />
+        {lite ? (
+          <meshLambertMaterial map={groundD} color={theme.ground.tint} vertexColors />
+        ) : (
+          <meshStandardMaterial map={groundD} normalMap={groundN} roughnessMap={groundR} color={theme.ground.tint} vertexColors />
+        )}
       </mesh>
       <RigidBody type="fixed" colliders={false} friction={1}>
         <TrimeshCollider args={[terrain.vertices, terrain.indices]} />
@@ -387,10 +397,24 @@ export function Track() {
 
       {[geo.shoulderL, geo.shoulderR].map((gm, i) => (
         <mesh key={`sh${i}`} geometry={gm} receiveShadow>
-          <meshStandardMaterial map={groundD} normalMap={groundN} roughnessMap={groundR} color={theme.ground.tint} side={THREE.DoubleSide} />
+          {lite ? (
+            <meshLambertMaterial map={groundD} color={theme.ground.tint} side={THREE.DoubleSide} />
+          ) : (
+            <meshStandardMaterial map={groundD} normalMap={groundN} roughnessMap={groundR} color={theme.ground.tint} side={THREE.DoubleSide} />
+          )}
         </mesh>
       ))}
       <mesh geometry={geo.road} receiveShadow>
+        {lite ? (
+          <meshLambertMaterial
+            map={asphaltD}
+            color={roadColor}
+            side={THREE.DoubleSide}
+            polygonOffset
+            polygonOffsetFactor={-2}
+            polygonOffsetUnits={-2}
+          />
+        ) : (
         <meshStandardMaterial
           map={asphaltD}
           normalMap={asphaltN}
@@ -403,6 +427,7 @@ export function Track() {
           polygonOffsetFactor={-2}
           polygonOffsetUnits={-2}
         />
+        )}
       </mesh>
       <mesh geometry={geo.lines}>
         <meshBasicMaterial map={lineTex} transparent depthWrite={false} side={THREE.DoubleSide} toneMapped={!neon} polygonOffset polygonOffsetFactor={-4} polygonOffsetUnits={-4} />

@@ -37,7 +37,12 @@ export function Minimap({ compact = false }: { compact?: boolean }) {
   useEffect(() => {
     let raf = 0;
     let lastPlace = "";
-    const tick = () => {
+    // ~20 Hz is plenty for a minimap and saves an SVG style/paint pass on every display refresh.
+    let last = 0;
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick);
+      if (now - last < 50) return;
+      last = now;
       const entries = [...markers.entries()];
       const me = markers.get("me");
       for (let i = 0; i < MAX_MARKERS; i++) {
@@ -71,7 +76,6 @@ export function Minimap({ compact = false }: { compact?: boolean }) {
           setPosition({ place, of: markers.size });
         }
       }
-      raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);

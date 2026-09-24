@@ -108,6 +108,8 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
   const finishRace = useGameStore((s) => s.finishRace);
 
   const sim = useRef({
+    /** Last nearest centerline index: the next search only looks around it (-1 = unknown, scan everything). */
+    progressIdx: -1,
     lapProgress: 0,
     lapCount: 0,
     lapTimer: 0,
@@ -224,8 +226,8 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
 
     const t = body.translation();
     const rot = body.rotation();
-    const quat = new THREE.Quaternion(rot.x, rot.y, rot.z, rot.w);
-    const f3 = new THREE.Vector3(0, 0, 1).applyQuaternion(quat);
+    const quat = _quat.set(rot.x, rot.y, rot.z, rot.w);
+    const f3 = _f3.set(0, 0, 1).applyQuaternion(quat);
     const heading = Math.atan2(f3.x, f3.z);
     const fl = Math.hypot(f3.x, f3.z) || 1;
     const fwd = { x: f3.x / fl, z: f3.z / fl };
@@ -398,7 +400,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       }
     }
     // Keep the car level with the road surface: damp roll/pitch and align to the ground.
-    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(quat);
+    const up = _up.set(0, 1, 0).applyQuaternion(quat);
     const lvl = grounded ? 9 : 4;
     // error axis = up x target; target is the ground normal while driving, world-up in the air
     const tg = grounded ? groundN : { x: 0, y: 1, z: 0 };
@@ -411,7 +413,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     const skidding = grounded && ((s.sliding && speed > 6) || (input.throttle > 0.8 && vf < 6 && vf > 0.5));
     if (skidding) {
       rearLocal.forEach((p) => {
-        const w = p.clone().applyQuaternion(quat);
+        const w = _w.copy(p).applyQuaternion(quat);
         if (s.tick % 2 === 0) addSkid(t.x + w.x, t.y + 0.06, t.z + w.z, heading);
         if (s.tick % 3 === 0) {
           emitParticle({
@@ -432,7 +434,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       });
     }
     if (boosting) {
-      const rear = new THREE.Vector3(0, 0.4, -1.3).applyQuaternion(quat);
+      const rear = _w.set(0, 0.4, -1.3).applyQuaternion(quat);
       const c = [1, 0.6, 0.15];
       emitParticle({
         x: t.x + rear.x,
@@ -459,6 +461,7 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       body.setLinvel({ x: 0, y: 0, z: 0 }, true);
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       s.lapProgress = idx / centerline.length;
+      s.progressIdx = idx % centerline.length;
       if (idx < centerline.length * 0.5 && s.lapCount === -1) s.lapCount = 0;
       s.flipped = 0;
       s.stuck = 0;
@@ -519,7 +522,15 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     out.vx = fwd.x * vfN + right.x * vlN;
     out.vz = fwd.z * vfN + right.z * vlN;
 
-    const progressIdx = nearestIndex(centerline, t.x, t.z, undefined, centerline.length);
+    // Search a window around last tick's index (a car moves far less than a window per tick); rescan the
+    // whole loop only when the position is unknown or the best match sits on the window edge (teleport).
+    const n = centerline.length;
+    let progressIdx = s.progressIdx < 0 ? nearestIndex(centerline, t.x, t.z) : nearestIndex(centerline, t.x, t.z, s.progressIdx, HINT_WINDOW);
+    if (s.progressIdx >= 0) {
+      const moved = Math.abs(progressIdx - s.progressIdx);
+      if (Math.min(moved, n - moved) >= HINT_WINDOW - 1) progressIdx = nearestIndex(centerline, t.x, t.z);
+    }
+    s.progressIdx = respawned ? -1 : progressIdx;
     const progress = respawned ? s.lapProgress : progressIdx / centerline.length;
     if (!respawned) {
       const nextCp = (s.cp + 1) % cps.length;
@@ -636,5 +647,12 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     </RigidBody>
   );
 }
+
+const HINT_WINDOW = 40;
+// Per-tick scratch objects (the physics tick runs 60x a second per car: no garbage).
+const _quat = new THREE.Quaternion();
+const _f3 = new THREE.Vector3();
+const _up = new THREE.Vector3();
+const _w = new THREE.Vector3();
 
 useGLTF.preload("/models/cars/race.glb");

@@ -52,8 +52,57 @@ function HdrLoader({ file, onReady }: { file: string; onReady: (file: string) =>
   return null;
 }
 
-function SkyEnvironment({ file, solid }: { file: string; solid: boolean }) {
-  return <Environment files={file} background={!solid} />;
+/**
+ * Sky + image-based lighting from one HDRI. When the file changes, the previous HDRI is dropped from the
+ * loader cache and its GPU texture freed, so switching maps / weather never piles up 1k HDRIs (iOS memory).
+ */
+function SkyEnvironment({ file, background }: { file: string; background: boolean }) {
+  const map = useEnvironment({ files: file });
+  useEffect(
+    () => () => {
+      map.dispose();
+      useEnvironment.clear({ files: file });
+    },
+    [map, file]
+  );
+  return <Environment map={map} background={background} />;
+}
+
+const SKY_BLUE = new THREE.Color("#3f6fb5");
+const _c = new THREE.Color();
+
+/** Writes the gradient; re-uploads (16 bytes) only when a texel actually changed. */
+function paintSky(tex: THREE.DataTexture, horizon: THREE.Color, mid: THREE.Color, zenith: THREE.Color) {
+  const d = tex.image.data as Uint8Array;
+  const before = checksum(d);
+  writeTexel(d, 0, horizon);
+  writeTexel(d, 1, horizon);
+  writeTexel(d, 2, mid);
+  writeTexel(d, 3, zenith);
+  if (checksum(d) !== before) tex.needsUpdate = true;
+}
+
+function checksum(d: Uint8Array): number {
+  let h = 0;
+  for (let i = 0; i < d.length; i++) h = (h * 31 + d[i]) | 0;
+  return h;
+}
+
+/** A 1x4 texel gradient (horizon at the bottom, zenith at the top) used as a flat sky on Low quality. */
+function makeSkyGradient(): THREE.DataTexture {
+  const tex = new THREE.DataTexture(new Uint8Array(16), 1, 4, THREE.RGBAFormat);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  return tex;
+}
+
+function writeTexel(data: Uint8Array, row: number, c: THREE.Color) {
+  _c.copy(c).convertLinearToSRGB();
+  data[row * 4] = Math.round(Math.min(1, _c.r) * 255);
+  data[row * 4 + 1] = Math.round(Math.min(1, _c.g) * 255);
+  data[row * 4 + 2] = Math.round(Math.min(1, _c.b) * 255);
+  data[row * 4 + 3] = 255;
 }
 
 /**
@@ -68,8 +117,10 @@ export function WeatherRig({ target }: { target: RefObject<CarTransform> }) {
   const quality = QUALITY[useQualityLevel()];
   const env = useMemo<EnvParams>(() => computeEnv(mapId, weather, tod), [mapId, weather, tod]);
 
+  // Low uses a 128x64 copy of each HDRI for lighting only (32 KB instead of 1-1.7 MB; the sky is a gradient).
+  const hdrFile = quality.cheapSky ? env.hdr.replace("/hdr/", "/hdr/lo/") : env.hdr;
   // the HDRI currently shown (swapped only once the new one is loaded)
-  const [shownHdr, setShownHdr] = useState(env.hdr);
+  const [shownHdr, setShownHdr] = useState(hdrFile);
 
   const envRef = useRef<EnvParams>(env);
   const stormRef = useRef(false);
@@ -77,6 +128,15 @@ export function WeatherRig({ target }: { target: RefObject<CarTransform> }) {
     envRef.current = env;
     stormRef.current = weather === "storm";
   }, [env, weather]);
+
+  const cheapRef = useRef(quality.cheapSky);
+  useEffect(() => {
+    cheapRef.current = quality.cheapSky;
+  }, [quality.cheapSky]);
+  const skyTex = useMemo(() => makeSkyGradient(), []);
+  useEffect(() => () => skyTex.dispose(), [skyTex]);
+  const zenith = useRef(new THREE.Color());
+  const mid = useRef(new THREE.Color());
 
   const fogRef = useRef<THREE.Fog>(null);
   const ambRef = useRef<THREE.AmbientLight>(null);
@@ -155,7 +215,24 @@ export function WeatherRig({ target }: { target: RefObject<CarTransform> }) {
     const scene = state.scene;
     scene.environmentIntensity = L.envI + flash * 1.4;
     scene.backgroundIntensity = L.bgI + flash * 1.8;
-    if (envRef.current.solidBg && fog) scene.background = fog.color;
+    const cheap = cheapRef.current;
+    if (fog && cheap && !envRef.current.solidBg) {
+      // Low: flat gradient sky whose horizon matches the fog, so clipping at the fog distance is seamless.
+      const lum = Math.max(fog.color.r, fog.color.g, fog.color.b);
+      zenith.current.copy(fog.color).multiplyScalar(0.72).lerp(_c.copy(SKY_BLUE).multiplyScalar(lum), 0.35);
+      mid.current.copy(fog.color).lerp(zenith.current, 0.55);
+      paintSky(skyTex, fog.color, mid.current, zenith.current);
+      scene.background = skyTex;
+    } else if (envRef.current.solidBg && fog) {
+      scene.background = fog.color;
+    }
+    // Low: nothing past the fog is visible, so do not draw it (the far plane also culls far scenery cells).
+    const cam = state.camera as THREE.PerspectiveCamera;
+    const far = cheap ? Math.max(160, L.far * 1.05) : 900;
+    if (Math.abs(cam.far - far) > 2) {
+      cam.far = far;
+      cam.updateProjectionMatrix();
+    }
   });
 
   return (
@@ -164,10 +241,10 @@ export function WeatherRig({ target }: { target: RefObject<CarTransform> }) {
       <ambientLight ref={ambRef} />
       <SunLight target={target} sunRef={sun} shadows={quality.shadows} mapSize={quality.shadowMapSize} />
       <Suspense fallback={null}>
-        <HdrLoader file={env.hdr} onReady={setShownHdr} />
+        <HdrLoader file={hdrFile} onReady={setShownHdr} />
       </Suspense>
       <Suspense fallback={null}>
-        <SkyEnvironment file={shownHdr} solid={env.solidBg} />
+        <SkyEnvironment file={shownHdr} background={!env.solidBg && !quality.cheapSky} />
       </Suspense>
       <Precipitation target={target} />
     </>

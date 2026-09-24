@@ -815,9 +815,13 @@ export function AudioManager() {
     document.addEventListener("visibilitychange", onVisibility);
 
     let raf = 0;
+    // Engine/wind/skid parameters are ramped by Web Audio, so ~40 updates a second is enough (not 120 on ProMotion).
+    let lastTick = 0;
     const tick = (t: number) => {
-      updateContinuous(t);
       raf = requestAnimationFrame(tick);
+      if (t - lastTick < 24) return;
+      lastTick = t;
+      updateContinuous(t);
     };
     raf = requestAnimationFrame(tick);
     const musicTimer = window.setInterval(watchMusic, 400);

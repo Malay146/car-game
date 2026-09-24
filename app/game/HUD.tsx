@@ -242,7 +242,7 @@ function Speedometer({ compact }: { compact: boolean }) {
   const boosting = useGameStore((s) => !!s.player.boosting);
   if (compact) {
     return (
-      <div className="absolute left-[6.75rem] top-2 flex items-baseline gap-1.5 rounded-full bg-black/50 px-3 py-1 backdrop-blur-sm landscape:left-1/2 landscape:-translate-x-1/2">
+      <div className="absolute left-[6.75rem] top-2 flex items-baseline gap-1.5 rounded-full bg-black/50 px-3 py-1 backdrop-blur-sm landscape:left-1/2 landscape:-translate-x-1/2 portrait:left-auto portrait:right-2 portrait:top-[calc(max(0.5rem,env(safe-area-inset-top))+3.25rem)]">
         <span className="font-mono text-2xl font-bold tabular-nums leading-none">{speed}</span>
         <span className="text-[10px] tracking-widest text-zinc-300">KM/H</span>
         {boosting && <span className="text-[10px] font-bold tracking-widest text-orange-300">BOOST</span>}

@@ -207,7 +207,7 @@ export function computeEnv(mapId: string, weather: WeatherId, tod: TodId): EnvPa
 export type Quality = "low" | "medium" | "high";
 /** Rain streaks / snow flakes / ground ripples allocated at each quality level (storm rain is x1.6). */
 export const PARTICLE_COUNTS: Record<Quality, { rain: number; snow: number; ripples: number }> = {
-  low: { rain: 300, snow: 300, ripples: 0 },
+  low: { rain: 160, snow: 180, ripples: 0 },
   medium: { rain: 1100, snow: 1200, ripples: 24 },
   high: { rain: 2400, snow: 2600, ripples: 48 },
 };
