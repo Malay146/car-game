@@ -11,7 +11,8 @@ const KEYS = {
   brake: ["Space"],
   handbrake: ["ShiftLeft", "ShiftRight"],
   item: ["KeyE", "Enter"],
-  reset: ["KeyF", "KeyR"],
+  reset: ["KeyR"],
+  flip: ["KeyF"],
 };
 
 /** Tracks keyboard state and returns a ref updated every frame — no re-renders. */
@@ -29,7 +30,8 @@ export function useKeyboardInput() {
         KEYS.brake,
         KEYS.handbrake,
         KEYS.item,
-        KEYS.reset
+        KEYS.reset,
+        KEYS.flip
       ).includes(code);
 
     const onDown = (e: KeyboardEvent) => {
@@ -63,6 +65,7 @@ export function useKeyboardInput() {
     inputRef.current.handbrake = has(KEYS.handbrake) ? 1 : 0;
     inputRef.current.useItem = has(KEYS.item);
     inputRef.current.reset = has(KEYS.reset);
+    inputRef.current.flip = has(KEYS.flip);
     return inputRef.current;
   };
 

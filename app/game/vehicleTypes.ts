@@ -5,6 +5,7 @@ export interface DriveInput {
   handbrake: number; // 0..1
   useItem?: boolean;
   reset?: boolean;
+  flip?: boolean;
 }
 
 export interface CarTransform {

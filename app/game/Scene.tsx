@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Environment } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
@@ -35,10 +35,6 @@ export function Scene() {
 
   const playerTransform = useRef<CarTransform>({ x: 0, y: 0.6, z: 0, heading: 0, speedKmh: 0, vx: 0, vz: 0 });
   const botTransform = useRef<CarTransform>({ x: 0, y: 0.6, z: 0, heading: 0, speedKmh: 0, vx: 0, vz: 0 });
-
-  useEffect(() => { // TEMP-TEST
-    (window as unknown as Record<string, unknown>).__hits = [];
-  }, []);
 
   const online = mode === "online" && myId !== null;
   const mySlot = online ? Math.max(0, roomPlayers.findIndex((p) => p.id === myId)) : 0;

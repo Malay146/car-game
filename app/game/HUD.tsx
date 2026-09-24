@@ -66,7 +66,7 @@ function Menu() {
     <div className="pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-5 bg-black/70">
       <h1 className="text-5xl font-black tracking-tight drop-shadow-lg">CHAOS CIRCUIT</h1>
       <p className="max-w-md text-center text-zinc-300">
-        WASD / arrows to drive, Space to brake, Shift to handbrake-drift, E to boost, F to return to your last checkpoint. {totalLaps} laps.
+        WASD / arrows to drive, Space to brake, Shift to handbrake-drift, E to boost, F to flip the car upright, R to return to your last checkpoint. {totalLaps} laps.
       </p>
       <MapCarousel value={mapId} onChange={selectMap} />
       <button
@@ -205,7 +205,7 @@ export function HUD() {
 
           <Minimap />
           <Toast />
-          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[11px] text-white/70">F / R: back to checkpoint · E: boost</div>
+          <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[11px] text-white/70">F: flip car upright · R: back to checkpoint · E: boost</div>
 
           <div className="absolute bottom-6 left-1/2 flex h-20 w-32 -translate-x-1/2 flex-col items-center justify-center rounded-xl bg-black/60 backdrop-blur-sm">
             <div className="text-xs uppercase tracking-widest text-zinc-400">Item</div>

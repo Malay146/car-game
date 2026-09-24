@@ -128,8 +128,8 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     resetReadyAt: 0,
     lastV: null as { x: number; y: number; z: number } | null,
     impactAt: 0,
-    info: "",
-    trace: [] as string[],
+    tangentVy: 0,
+    wasGrounded: false,
     flipped: 0,
     stuck: 0,
     tick: 0,
@@ -194,10 +194,10 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
       );
     });
     for (let i = 0; i < wheelDefs.length; i++) {
-      controller.setWheelSuspensionStiffness(i, 30);
+      controller.setWheelSuspensionStiffness(i, 36);
       controller.setWheelSuspensionCompression(i, 5.5);
       controller.setWheelSuspensionRelaxation(i, 6);
-      controller.setWheelMaxSuspensionTravel(i, 0.28);
+      controller.setWheelMaxSuspensionTravel(i, 0.4);
       controller.setWheelMaxSuspensionForce(i, 80000);
       controller.setWheelFrictionSlip(i, 0.001);
       controller.setWheelSideFrictionStiffness(i, 0.001);
@@ -242,28 +242,6 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     const vf0 = lv0.x * fwd.x + lv0.z * fwd.z;
 
     // Impact sounds: only a real, sudden velocity change (wall, car, hard landing) - never mere contact.
-    if (s.lastV && !isPlayer) { // TEMP-TEST
-      const dh = Math.hypot(lv0.x - s.lastV.x, lv0.z - s.lastV.z);
-      const dy = lv0.y - s.lastV.y;
-      if (dh > 2.2 || Math.abs(dy) > 3.5) {
-        const bt = body.translation();
-        const touching: string[] = [];
-        for (let ci = 0; ci < body.numColliders(); ci++) {
-          const mine = body.collider(ci);
-          world.contactPairsWith(mine, (other) => {
-            world.contactPair(mine, other, (manifold) => {
-              if (manifold.numContacts() === 0) return;
-              const sh = other.shape as unknown as { type?: number; vertices?: Float32Array };
-              const n = manifold.normal();
-              touching.push(`myCollider#${ci} vs shapeType=${sh.type} vertFloats=${sh.vertices ? sh.vertices.length : "-"} normal=(${n.x.toFixed(2)},${n.y.toFixed(2)},${n.z.toFixed(2)}) contacts=${manifold.numContacts()} dist0=${manifold.contactDist(0).toFixed(3)} impulse0=${manifold.contactImpulse(0).toFixed(1)}`);
-            });
-          });
-        }
-        const cpn = centerline[nearestIndex(centerline, bt.x, bt.z)];
-        const off = Math.hypot(cpn.x - bt.x, cpn.z - bt.z);
-        (window as unknown as { __hits?: string[] }).__hits?.push(`TOUCHING{${touching.join(";")}} NOW vy0=${lv0.y.toFixed(1)} off=${off.toFixed(1)} roadY=${cpn.y.toFixed(1)} ${bt.x.toFixed(0)},${bt.z.toFixed(0)},${bt.y.toFixed(1)} dvh=${dh.toFixed(1)} dvy=${dy.toFixed(1)} sp=${vf0.toFixed(0)} f=${(s.lapProgress).toFixed(3)}`);
-      }
-    }
     if (s.lastV && isPlayer) {
       const dvh = Math.hypot(lv0.x - s.lastV.x, lv0.z - s.lastV.z);
       const dvy = lv0.y - s.lastV.y;
@@ -356,7 +334,6 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     const vxN = fwd.x * vfN + right.x * vlN;
     const vzN = fwd.z * vfN + right.z * vlN;
     // On real slopes (ramps) follow the surface so the car launches off the lip instead of digging in.
-    let dbgNy = 1;
     const groundN = { x: 0, y: 1, z: 0 }; // average contact normal: what the body should level toward
     let vyN = lv.y;
     if (justLanded && vyN < -2) vyN *= 0.35; // soak up the landing so the car doesn't bounce
@@ -380,22 +357,23 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
         nx /= len;
         ny /= len;
         nz /= len;
-        dbgNy = ny;
         if (ny > 0.5) {
           groundN.x = nx;
           groundN.y = ny;
           groundN.z = nz;
         }
-        if (ny > 0.2 && ny < 0.999) vyN = -(nx * vxN + nz * vzN) / ny;
+        // remembered only for take-off: while driving, the suspension alone holds the car on the surface
+        s.tangentVy = ny > 0.2 && ny < 0.999 ? -(nx * vxN + nz * vzN) / ny : 0;
       }
     }
+    // Leaving a ramp lip / crest: carry the surface's upward speed into the air.
+    if (s.wasGrounded && !grounded && s.tangentVy > 0) vyN = Math.max(vyN, s.tangentVy * 0.95);
+    if (!grounded) s.tangentVy = 0;
+    s.wasGrounded = grounded;
     // Cap upward speed so a hard clip against an edge can never catapult the car.
     const vyOut = Math.min(vyN, 10);
     body.setLinvel({ x: vxN, y: vyOut, z: vzN }, true);
     s.lastV = { x: vxN, y: vyOut, z: vzN };
-    s.info = `y=${t.y.toFixed(2)} vy0=${lv0.y.toFixed(1)} set=${vyOut.toFixed(1)} contacts=${contacts} ny=${dbgNy.toFixed(3)} sp=${vfN.toFixed(0)}`; // TEMP-TEST
-    s.trace.push(s.info);
-    if (s.trace.length > 8) s.trace.shift();
 
     // Yaw: steering sets a target yaw rate; drifting overrotates and settles more slowly.
     let yaw = av.y * 0.99;
@@ -498,7 +476,8 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     const rightInPlace = () => {
       body.setTranslation({ x: t.x, y: t.y + 1, z: t.z }, true);
       body.setRotation(new rapier.Quaternion(0, Math.sin(heading / 2), 0, Math.cos(heading / 2)), true);
-      body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      const keep = up.y > 0.6 ? 1 : 0; // already upright: keep rolling
+      body.setLinvel({ x: lv0.x * keep, y: 0, z: lv0.z * keep }, true);
       body.setAngvel({ x: 0, y: 0, z: 0 }, true);
       s.flipped = 0;
       s.sliding = false;
@@ -506,12 +485,14 @@ export function Car({ isPlayer, model, color, startX, startZ, startHeading, tran
     };
     s.flipped = up.y < 0.25 && speed < 5 ? s.flipped + DT : 0;
     s.stuck = (!isPlayer || input.throttle > 0.5) && speed < 1.2 ? s.stuck + DT : 0;
-    if (isPlayer && input.reset && now > s.resetReadyAt) {
-      s.resetReadyAt = now + 1200;
-      if (up.y < 0.6) {
+    if (isPlayer && (input.flip || input.reset) && now > s.resetReadyAt) {
+      s.resetReadyAt = now + 1000;
+      if (input.flip) {
+        // F: flip / straighten the car right where it is
         rightInPlace();
-        useGameStore.getState().flash("Car righted");
+        useGameStore.getState().flash("Car flipped upright");
       } else {
+        // R: back to the last checkpoint
         respawnAt(cps[s.cp]);
         useGameStore.getState().flash("Back to checkpoint");
       }

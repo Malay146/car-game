@@ -1,0 +1,5 @@
+All models in this folder are from Poly Haven (polyhaven.com), released under CC0 (public domain):
+tree_small_02, island_tree_02, boulder_01, rock_moss_set_01, rock_moss_set_02, namaqualand_boulder_02,
+fern_02, shrub_sorrel_01, grass_medium_01, dead_tree_trunk_02, Barrel_01, Barrel_02, old_tyre,
+street_lamp_01, wooden_crate_01, utility_box_02.
+They were decimated and repacked into single .glb files with glTF-Transform for real-time use.

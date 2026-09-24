@@ -49,6 +49,7 @@ export interface MapDef {
 }
 
 const N = "/models/nature/";
+const R = "/models/real/";
 
 export const MAPS: MapDef[] = [
   {
@@ -97,11 +98,16 @@ export const MAPS: MapDef[] = [
       kerb: ["#d8352a", "#f0f0f0"],
       wall: ["#d8352a", "#ececec"],
       scenery: [
-        { url: N + "tree_pineTallA.glb", count: 110, scale: [5, 8] },
-        { url: N + "tree_default.glb", count: 110, scale: [5, 8] },
-        { url: N + "tree_oak.glb", count: 100, scale: [5, 8] },
-        { url: N + "rock_largeA.glb", count: 70, scale: [4, 10] },
-        { url: N + "plant_bushLarge.glb", count: 140, scale: [4, 7] },
+        { url: N + "tree_pineTallA.glb", count: 60, scale: [5, 8] },
+        { url: N + "tree_default.glb", count: 60, scale: [5, 8] },
+        { url: N + "tree_oak.glb", count: 60, scale: [5, 8] },
+        { url: R + "boulder_01.glb", count: 30, scale: [3, 6] },
+        { url: R + "rock_moss_set_01.glb", count: 8, scale: [1.6, 2.6] },
+        { url: R + "rock_moss_set_02.glb", count: 8, scale: [1.6, 2.6] },
+        { url: R + "fern_02.glb", count: 45, scale: [2, 3.4] },
+        { url: R + "shrub_sorrel_01.glb", count: 55, scale: [5, 9] },
+        { url: R + "grass_medium_01.glb", count: 40, scale: [2.4, 4] },
+        { url: R + "dead_tree_trunk_02.glb", count: 6, scale: [1.4, 2] },
       ],
       previewSky: ["#7db8ff", "#e7f2ff"],
       previewGround: "#5d9a45",
@@ -156,11 +162,12 @@ export const MAPS: MapDef[] = [
       kerb: ["#ff7a1a", "#fff2dc"],
       wall: ["#c65a2e", "#f0d6b8"],
       scenery: [
-        { url: N + "cactus_tall.glb", count: 90, scale: [4, 6.5] },
-        { url: N + "cactus_short.glb", count: 90, scale: [3, 5] },
-        { url: N + "tree_palmTall.glb", count: 26, scale: [5, 8] },
-        { url: N + "rock_tallB.glb", count: 60, scale: [5, 12] },
-        { url: N + "stone_largeB.glb", count: 60, scale: [4, 8] },
+        { url: N + "tree_palmTall.glb", count: 22, scale: [5, 8] },
+        { url: N + "cactus_tall.glb", count: 45, scale: [4, 6.5] },
+        { url: N + "cactus_short.glb", count: 45, scale: [3, 5] },
+        { url: R + "namaqualand_boulder_02.glb", count: 45, scale: [3, 7] },
+        { url: R + "dead_tree_trunk_02.glb", count: 14, scale: [1.5, 2.4] },
+        { url: R + "shrub_sorrel_01.glb", count: 30, scale: [5, 8] },
       ],
       previewSky: ["#ff9a55", "#ffd9a8"],
       previewGround: "#c98a54",
@@ -215,10 +222,12 @@ export const MAPS: MapDef[] = [
       kerb: ["#2b6fe0", "#ffffff"],
       wall: ["#3a86ff", "#f2f6ff"],
       scenery: [
-        { url: N + "tree_pineTallA.glb", count: 200, scale: [6, 9] },
-        { url: N + "tree_pineRoundA.glb", count: 120, scale: [5, 8] },
-        { url: N + "stone_largeA.glb", count: 60, scale: [4, 8] },
-        { url: N + "rock_largeA.glb", count: 40, scale: [5, 10] },
+        { url: N + "tree_pineTallA.glb", count: 130, scale: [6, 9] },
+        { url: N + "tree_pineRoundA.glb", count: 80, scale: [5, 8] },
+        { url: R + "boulder_01.glb", count: 35, scale: [3, 7] },
+        { url: R + "rock_moss_set_01.glb", count: 8, scale: [1.8, 3] },
+        { url: R + "rock_moss_set_02.glb", count: 8, scale: [1.8, 3] },
+        { url: R + "dead_tree_trunk_02.glb", count: 8, scale: [1.4, 2.2] },
       ],
       previewSky: ["#b9c9d8", "#eef3f8"],
       previewGround: "#e9eef4",
@@ -271,9 +280,12 @@ export const MAPS: MapDef[] = [
       neon: true,
       headlights: true,
       scenery: [
-        { url: N + "tree_default_dark.glb", count: 120, scale: [5, 8] },
-        { url: N + "tree_cone_dark.glb", count: 120, scale: [5, 8] },
-        { url: N + "rock_largeA.glb", count: 50, scale: [4, 9] },
+        { url: N + "tree_default_dark.glb", count: 60, scale: [5, 8] },
+        { url: N + "tree_cone_dark.glb", count: 60, scale: [5, 8] },
+        { url: R + "boulder_01.glb", count: 24, scale: [3, 6] },
+        { url: R + "rock_moss_set_01.glb", count: 8, scale: [1.6, 2.6] },
+        { url: R + "fern_02.glb", count: 40, scale: [2, 3.2] },
+        { url: R + "grass_medium_01.glb", count: 30, scale: [2.4, 4] },
       ],
       previewSky: ["#0b1030", "#3a1a66"],
       previewGround: "#1c2540",

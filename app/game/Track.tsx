@@ -282,14 +282,51 @@ export function Track() {
       const off = TRACK.wallOffset + 6 + rand() * 10;
       lining.push({ x: p.x + nx * off * side, z: p.z + nz * off * side, y: terrain.heightAt(p.x + nx * off * side, p.z + nz * off * side), rot: rand() * 6.28, scale: 5 + rand() * 3 });
     }
-    const posts: Placement[] = [];
-    for (let i = 0; i < path.length; i += 28) {
-      const p = path[i];
+    // Roadside dressing just outside the barriers: real street lamps, barrels, crates, boxes, tyre walls on sharp bends.
+    const side = () => (rand() < 0.5 ? -1 : 1);
+    const at = (i: number, sd: number, off: number, rot: number, sc: number): Placement => {
+      const p = path[i % path.length];
       const [nx, nz] = normalOf(p);
-      const off = TRACK.wallOffset + 2.2;
-      posts.push({ x: p.x + nx * off, z: p.z + nz * off, y: terrain.heightAt(p.x + nx * off, p.z + nz * off), rot: p.heading + Math.PI / 2, scale: 6 });
+      const x = p.x + nx * off * sd;
+      const z = p.z + nz * off * sd;
+      return { x, z, y: terrain.heightAt(x, z), rot, scale: sc };
+    };
+    const lamps: Placement[] = [];
+    const lampEvery = theme.neon ? 20 : 34;
+    for (let i = 8, k = 0; i < path.length; i += lampEvery, k++) {
+      const sd = k % 2 === 0 ? 1 : -1;
+      lamps.push(at(i, sd, TRACK.wallOffset + 3, path[i].heading + (sd > 0 ? Math.PI : 0), 1.5));
     }
-    return { groups, lining, posts };
+    const barrelsA: Placement[] = [];
+    const barrelsB: Placement[] = [];
+    const crates: Placement[] = [];
+    const boxes: Placement[] = [];
+    const tyres: Placement[] = [];
+    for (let k = 0; k < 16; k++) {
+      const i = Math.floor(rand() * path.length);
+      const sd = side();
+      const off = TRACK.wallOffset + 3.5 + rand() * 3;
+      for (let j = 0; j < 3; j++) {
+        const list = j % 2 === 0 ? barrelsA : barrelsB;
+        list.push(at(i + j * 2, sd, off + (j % 2) * 1.1, rand() * 6.28, 1.5));
+      }
+    }
+    for (let k = 0; k < 12; k++) {
+      const i = Math.floor(rand() * path.length);
+      crates.push(at(i, side(), TRACK.wallOffset + 3.5 + rand() * 2.5, rand() * 6.28, 1.7));
+    }
+    for (let k = 0; k < 8; k++) {
+      const i = Math.floor(rand() * path.length);
+      const sd = side();
+      boxes.push(at(i, sd, TRACK.wallOffset + 3.5, path[i].heading + (sd > 0 ? Math.PI : 0), 1.7));
+    }
+    for (let i = 0; i < path.length && tyres.length < 110; i += 3) {
+      if (Math.abs(path[i].curvature) < 0.03) continue;
+      for (const sd of [-1, 1]) {
+        tyres.push(at(i, sd, TRACK.wallOffset + 2.1, path[i].heading + Math.PI / 2, 1.7));
+      }
+    }
+    return { groups, lining, lamps, barrelsA, barrelsB, crates, boxes, tyres };
   }, [path, theme, mapId, terrain]);
 
   const start = path[0];
@@ -390,10 +427,15 @@ export function Track() {
       />
 
       {scenery.groups.map((grp, i) => (
-        <InstancedProps key={grp.url + i} url={grp.url} placements={grp.placements} castShadow />
+        <InstancedProps key={grp.url + i} url={grp.url} placements={grp.placements} castShadow={!/fern|grass|shrub/.test(grp.url)} />
       ))}
       {theme.scenery[0] && <InstancedProps url={theme.scenery[0].url} placements={scenery.lining} castShadow />}
-      <InstancedProps url="/models/lightPostModern.glb" placements={scenery.posts} castShadow />
+      <InstancedProps url="/models/real/street_lamp_01.glb" placements={scenery.lamps} castShadow />
+      <InstancedProps url="/models/real/Barrel_01.glb" placements={scenery.barrelsA} castShadow />
+      <InstancedProps url="/models/real/Barrel_02.glb" placements={scenery.barrelsB} castShadow />
+      <InstancedProps url="/models/real/wooden_crate_01.glb" placements={scenery.crates} castShadow />
+      <InstancedProps url="/models/real/utility_box_02.glb" placements={scenery.boxes} castShadow />
+      <InstancedProps url="/models/real/old_tyre.glb" placements={scenery.tyres} castShadow />
 
       <MapFeatures />
     </group>
