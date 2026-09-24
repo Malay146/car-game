@@ -8,6 +8,8 @@ export interface SettingsData {
   quality: QualityPref;
   autoLevel: QualityLevel;
   showFps: boolean;
+  /** Frame-rate cap while racing: "30", "60" or "max" (display refresh). Lower = cooler, quieter laptop. */
+  maxFps: "30" | "60" | "max";
   masterVolume: number; // 0..1
   musicVolume: number; // 0..1
   sfxVolume: number; // 0..1
@@ -32,6 +34,7 @@ const defaults: SettingsData = {
   quality: "auto",
   autoLevel: "high",
   showFps: false,
+  maxFps: "60",
   masterVolume: 0.8,
   musicVolume: 0.5,
   sfxVolume: 0.8,

@@ -175,6 +175,7 @@ const QUALITY_INFO: Record<QualityPref, string> = {
 function GraphicsSection() {
   const quality = useSettings((s) => s.quality);
   const showFps = useSettings((s) => s.showFps);
+  const maxFps = useSettings((s) => s.maxFps);
   const set = useSettings((s) => s.set);
   const level = useQualityLevel();
   return (
@@ -191,6 +192,17 @@ function GraphicsSection() {
           ]}
         />
         {quality === "auto" && <p className="text-xs text-zinc-400">Currently using: <b className="text-zinc-200">{level}</b></p>}
+      </Field>
+      <Field title="Frame rate limit" hint="60 is smooth and keeps laptops cool. Max uses your display's full refresh rate (e.g. 120 Hz) and much more power.">
+        <Segmented<"30" | "60" | "max">
+          value={maxFps}
+          onChange={(v) => set({ maxFps: v })}
+          options={[
+            { id: "30", label: "30" },
+            { id: "60", label: "60" },
+            { id: "max", label: "Max" },
+          ]}
+        />
       </Field>
       <Toggle checked={showFps} onChange={(v) => set({ showFps: v })} label="FPS counter" hint="Shows frame rate, scene draws and triangles." />
     </div>

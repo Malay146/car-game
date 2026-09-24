@@ -1,5 +1,6 @@
 "use client";
 
+import { useSettingsUi } from "./settingsUi";
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { Environment, useGLTF } from "@react-three/drei";
@@ -44,7 +45,7 @@ function Turntable({ url, paint }: { url: string; paint: string }) {
 
 function Preview({ url, paint }: { url: string; paint: string }) {
   return (
-    <Canvas dpr={[1, 1.75]} camera={{ fov: 32, position: [5.6, 2.8, 7.0], near: 0.1, far: 60 }} gl={{ antialias: true }}>
+    <Canvas dpr={[1, 1.5]} camera={{ fov: 32, position: [5.6, 2.8, 7.0], near: 0.1, far: 60 }} gl={{ antialias: true }}>
       <color attach="background" args={["#14161c"]} />
       <fog attach="fog" args={["#14161c", 12, 26]} />
       <ambientLight intensity={0.35} />
@@ -78,6 +79,12 @@ export function Garage({ onClose }: { onClose: () => void }) {
   const setProfile = useGameStore((s) => s.setProfile);
   const car = getCar(profile.carId);
   const paint = isHexColor(profile.paint) ? profile.paint : car.defaultPaint;
+
+  // The garage covers the whole screen: stop rendering the race scene behind it.
+  useEffect(() => {
+    useSettingsUi.getState().setSceneHidden(true);
+    return () => useSettingsUi.getState().setSceneHidden(false);
+  }, []);
 
   useEffect(() => {
     CARS.forEach((c) => useGLTF.preload(c.url));

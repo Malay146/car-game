@@ -15,8 +15,8 @@ export interface QualityPreset {
 
 export const QUALITY: Record<QualityLevel, QualityPreset> = {
   low: { dpr: 1, shadows: false, shadowMapSize: 512, sceneryDensity: 0.3, groundCover: false, post: "none", anisotropy: 2 },
-  medium: { dpr: 1.5, shadows: true, shadowMapSize: 1024, sceneryDensity: 0.65, groundCover: true, post: "light", anisotropy: 4 },
-  high: { dpr: 2, shadows: true, shadowMapSize: 2048, sceneryDensity: 1, groundCover: true, post: "full", anisotropy: 8 },
+  medium: { dpr: 1.25, shadows: true, shadowMapSize: 1024, sceneryDensity: 0.65, groundCover: true, post: "light", anisotropy: 4 },
+  high: { dpr: 1.5, shadows: true, shadowMapSize: 2048, sceneryDensity: 1, groundCover: true, post: "full", anisotropy: 8 },
 };
 
 export const LEVELS: QualityLevel[] = ["low", "medium", "high"];

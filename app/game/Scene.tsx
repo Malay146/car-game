@@ -3,7 +3,8 @@
 import { useRef } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Physics } from "@react-three/rapier";
-import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import { FrameDriver } from "./FrameDriver";
 import { Track } from "./Track";
 import { Car } from "./Car";
 import { RemoteCar } from "./RemoteCar";
@@ -47,7 +48,17 @@ export function Scene() {
     <>
     <SceneProgress />
     {/* `flat` = no tone mapping, matching the look the post-processing pipeline produces; `dpr` is capped per quality level. */}
-    <Canvas flat shadows={quality.shadows} dpr={[1, quality.dpr]} camera={{ fov: 60, near: 0.1, far: 900 }} gl={{ powerPreference: "high-performance" }} style={{ touchAction: "none" }}>
+    <Canvas
+      flat
+      frameloop="demand"
+      shadows={quality.shadows}
+      dpr={[1, quality.dpr]}
+      camera={{ fov: 60, near: 0.1, far: 900 }}
+      // "default" lets dual-GPU laptops stay on the integrated GPU instead of waking the discrete one.
+      gl={{ powerPreference: "default" }}
+      style={{ touchAction: "none" }}
+    >
+      <FrameDriver />
       <PerfMonitor />
       <WeatherRig target={playerTransform} />
 
@@ -100,18 +111,18 @@ export function Scene() {
 
       <CameraRig target={playerTransform} />
 
+      {/* Only High pays for a post-processing pass (bloom); the vignette is a free CSS overlay below. */}
       {quality.post === "full" && (
-        <EffectComposer multisampling={4}>
+        <EffectComposer multisampling={2}>
           <Bloom intensity={0.35} luminanceThreshold={0.7} mipmapBlur />
-          <Vignette eskil={false} offset={0.15} darkness={0.6} />
-        </EffectComposer>
-      )}
-      {quality.post === "light" && (
-        <EffectComposer multisampling={0}>
-          <Vignette eskil={false} offset={0.15} darkness={0.6} />
         </EffectComposer>
       )}
     </Canvas>
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0"
+      style={{ background: "radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.45) 100%)" }}
+    />
     </>
   );
 }

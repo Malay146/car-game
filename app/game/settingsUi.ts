@@ -11,6 +11,9 @@ interface SettingsUi {
   /** True while a key is being rebound, so Escape cancels the rebind instead of closing the panel. */
   rebinding: boolean;
   setRebinding: (v: boolean) => void;
+  /** A full-screen overlay (garage) hides the 3D view: the scene stops rendering. */
+  sceneHidden: boolean;
+  setSceneHidden: (v: boolean) => void;
 }
 
 export const useSettingsUi = create<SettingsUi>((set) => ({
@@ -21,4 +24,6 @@ export const useSettingsUi = create<SettingsUi>((set) => ({
   toggle: () => set((s) => ({ open: !s.open, rebinding: false })),
   rebinding: false,
   setRebinding: (rebinding) => set({ rebinding }),
+  sceneHidden: false,
+  setSceneHidden: (sceneHidden) => set({ sceneHidden }),
 }));

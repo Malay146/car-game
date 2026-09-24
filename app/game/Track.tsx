@@ -456,7 +456,12 @@ export function Track() {
       {/* Each group streams in on its own so a late model never blanks the whole scene (e.g. when quality steps up). */}
       {scenery.groups.map((grp, i) => (
         <Suspense key={grp.url + i} fallback={null}>
-          <InstancedProps url={grp.url} placements={grp.placements} castShadow={!isGroundCover(grp.url)} />
+          <InstancedProps
+            url={grp.url}
+            placements={grp.placements}
+            castShadow={!isGroundCover(grp.url)}
+            maxDistance={isGroundCover(grp.url) ? 90 : undefined}
+          />
         </Suspense>
       ))}
       {theme.scenery[0] && (
