@@ -6,16 +6,49 @@ import { useGLTF } from "@react-three/drei";
 import { RigidBody, CuboidCollider } from "@react-three/rapier";
 import type { RapierRigidBody } from "@react-three/rapier";
 import * as THREE from "three";
-import { remoteStates } from "./net";
+import { makeSample, sampleRemote } from "./remoteBuffer";
 import { markers, setMarker } from "./markers";
 
 import { useQualityLevel } from "./settings";
 import { cloneCar, findWheels, tintPaint } from "./carModel";
 
+/** Name plate: colour swatch + player name drawn on a canvas (no font downloads). */
+function makeLabelTexture(name: string, color: string): THREE.CanvasTexture | null {
+  if (!name || typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.font = "bold 54px system-ui, sans-serif";
+  const textW = Math.min(ctx.measureText(name).width, 400);
+  const w = textW + 96;
+  const x0 = (512 - w) / 2;
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.beginPath();
+  ctx.roundRect(x0, 20, w, 88, 44);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x0 + 44, 64, 20, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.8)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.fillStyle = "#fff";
+  ctx.textBaseline = "middle";
+  ctx.fillText(name, x0 + 76, 68, 400);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 interface Props {
   id: string;
   model: string;
   color: string;
+  /** Shown on a floating label above the car. */
+  name?: string;
   startX: number;
   startZ: number;
   startHeading: number;
@@ -26,7 +59,7 @@ interface Props {
  * shoves the local car on contact; the remote player's own client resolves the
  * same contact for their car.
  */
-export function RemoteCar({ id, model, color, startX, startZ, startHeading }: Props) {
+export function RemoteCar({ id, model, color, name, startX, startZ, startHeading }: Props) {
   const bodyRef = useRef<RapierRigidBody | null>(null);
   const quality = useQualityLevel();
   const { scene } = useGLTF(model);
@@ -38,6 +71,9 @@ export function RemoteCar({ id, model, color, startX, startZ, startHeading }: Pr
   const pos = useRef(new THREE.Vector3(startX, 0.6, startZ));
   const quat = useRef(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, startHeading, 0)));
   const target = useMemo(() => ({ pos: new THREE.Vector3(), quat: new THREE.Quaternion() }), []);
+  const sample = useMemo(() => makeSample(), []);
+  const label = useMemo(() => makeLabelTexture(name ?? "", color), [name, color]);
+  useEffect(() => () => label?.dispose(), [label]);
 
   useEffect(() => {
     wheels.forEach((w) => {
@@ -67,25 +103,23 @@ export function RemoteCar({ id, model, color, startX, startZ, startHeading }: Pr
   useFrame((state, delta) => {
     const body = bodyRef.current;
     if (!body) return;
-    const snap = remoteStates.get(id);
     if (gem.current) gem.current.rotation.y = state.clock.elapsedTime * 2;
-    if (snap) {
-      // Dead-reckon from the last snapshot so motion stays smooth between network updates.
-      const age = snap.t ? Math.min(0.25, (performance.now() - snap.t) / 1000) : 0;
-      target.pos.set(snap.x + snap.vx * age, snap.y, snap.z + snap.vz * age);
-      target.quat.set(snap.qx, snap.qy, snap.qz, snap.qw);
-      const k = 1 - Math.exp(-14 * delta);
+    // Rendered ~100 ms in the past by interpolating buffered snapshots (see remoteBuffer.ts).
+    if (sampleRemote(id, performance.now(), sample)) {
+      target.pos.set(sample.x, sample.y, sample.z);
+      target.quat.set(sample.qx, sample.qy, sample.qz, sample.qw);
+      const k = 1 - Math.exp(-30 * delta);
       pos.current.lerp(target.pos, k);
       quat.current.slerp(target.quat, k);
 
       const heading = Math.atan2(2 * (target.quat.w * target.quat.y + target.quat.x * target.quat.z), 1 - 2 * (target.quat.y * target.quat.y + target.quat.z * target.quat.z));
-      setMarker(id, pos.current.x, pos.current.z, heading, color, snap.total);
+      setMarker(id, pos.current.x, pos.current.z, heading, color, sample.total);
 
-      wheelSpin.current += (snap.speedKmh / 3.6) * delta;
+      wheelSpin.current += (sample.speedKmh / 3.6) * delta;
       wheels.forEach((w) => {
         if (!w.node) return;
         w.node.rotation.x = wheelSpin.current / w.radius;
-        w.node.rotation.y = w.front ? snap.steer : 0;
+        w.node.rotation.y = w.front ? sample.steer : 0;
       });
     }
     body.setNextKinematicTranslation(pos.current);
@@ -106,6 +140,11 @@ export function RemoteCar({ id, model, color, startX, startZ, startHeading }: Pr
         <octahedronGeometry args={[0.35]} />
         <meshBasicMaterial color={color} />
       </mesh>
+      {label && (
+        <sprite position={[0, 3.5, 0]} scale={[3.6, 0.9, 1]}>
+          <spriteMaterial map={label} transparent toneMapped={false} fog={false} />
+        </sprite>
+      )}
     </RigidBody>
   );
 }

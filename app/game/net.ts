@@ -1,5 +1,9 @@
 import { io, Socket } from "socket.io-client";
 import { useGameStore } from "./store";
+import { useNetStatus } from "./netStatus";
+import { useOnlineResults } from "./resultsStore";
+import { clearRemotes, pushSnapshot, removeRemote } from "./remoteBuffer";
+import type { JoinAck, RoomSnapshot, WirePlayer, WireResultEntry } from "../../realtime/protocol";
 
 export interface NetState {
   x: number;
@@ -14,8 +18,6 @@ export interface NetState {
   speedKmh: number;
   steer: number;
   total: number;
-  /** Local receive time (ms), set on arrival. */
-  t?: number;
 }
 
 export interface Profile {
@@ -24,79 +26,161 @@ export interface Profile {
   paint: string;
 }
 
-export interface RoomPlayer extends Profile {
-  id: string;
-}
+export type RoomPlayer = WirePlayer;
 
-interface JoinAck {
-  ok: boolean;
-  error?: string;
-  code?: string;
-  id?: string;
-  players?: RoomPlayer[];
-  hostId?: string;
-  mapId?: string;
-  options?: Record<string, string>;
-}
+/**
+ * Where the realtime (Socket.IO) server lives. Unset means same origin, which is what the custom
+ * Next server (`npm run dev` / `npm start`) provides. On Vercel set NEXT_PUBLIC_REALTIME_URL to the
+ * standalone realtime server (see README "Deploying").
+ */
+export const REALTIME_URL: string | undefined = process.env.NEXT_PUBLIC_REALTIME_URL || undefined;
 
-/** Latest snapshot per remote player; mutated by socket events, read every frame by RemoteCar. */
-export const remoteStates = new Map<string, NetState>();
+const CONNECT_TIMEOUT_MS = 5000;
+const ACK_TIMEOUT_MS = 8000;
+
+export const UNAVAILABLE_MESSAGE = "Online play is unavailable right now. Please try again in a moment.";
+const WAKING_HINT = " The server may be waking up: give it up to a minute, then retry.";
 
 let socket: Socket | null = null;
+/** Identity of our seat in the current room; kept in memory so a dropped connection can reclaim it. */
+let session: { code: string; id: string; token: string } | null = null;
+let pendingFinish: { bestLapMs: number | null } | null = null;
+
+function endSession(message?: string) {
+  session = null;
+  pendingFinish = null;
+  clearRemotes();
+  useNetStatus.getState().setReconnecting(false);
+  if (message) useNetStatus.getState().setMenuMessage(message);
+}
+
+function applySnapshot(snap: Partial<RoomSnapshot>) {
+  if (!snap.players || !snap.hostId) return;
+  useGameStore.getState().setRoomPlayers(snap.players, snap.hostId, snap.mapId, snap.options);
+}
+
+function tryRejoin(s: Socket) {
+  if (!session) return;
+  const { code, id, token } = session;
+  s.timeout(ACK_TIMEOUT_MS).emit("room:rejoin", code, id, token, (err: Error | null, ack?: JoinAck) => {
+    if (!session) return;
+    if (err || !ack?.ok) {
+      // The seat is gone (server restarted, or we were away past the grace period).
+      const store = useGameStore.getState();
+      endSession("You were disconnected and the room no longer exists.");
+      store.leaveRoom();
+      return;
+    }
+    useNetStatus.getState().setReconnecting(false);
+    applySnapshot(ack);
+    const store = useGameStore.getState();
+    if (ack.results) useOnlineResults.getState().set(ack.results, ack.status !== "racing");
+    if (ack.status === "racing" && store.phase === "lobby") store.beginOnlineRace();
+    else if (ack.status === "lobby" && store.phase === "playing" && store.raceState !== "finished") store.reset();
+    if (pendingFinish) {
+      const p = pendingFinish;
+      pendingFinish = null;
+      s.emit("race:finish", p, onFinishAck);
+    }
+  });
+}
+
+function onFinishAck(ack?: { ok: boolean; error?: string }) {
+  if (ack && !ack.ok) useGameStore.getState().flash("Result could not be verified");
+}
 
 function getSocket(): Socket {
   if (socket) return socket;
-  const s = io();
+  const s = io(REALTIME_URL, {
+    transports: ["websocket", "polling"],
+    autoConnect: false,
+    timeout: CONNECT_TIMEOUT_MS,
+    reconnectionAttempts: 12,
+    reconnectionDelay: 800,
+    reconnectionDelayMax: 4000,
+  });
   socket = s;
 
-  s.on(
-    "room:players",
-    ({ players, hostId, mapId, options }: { players: RoomPlayer[]; hostId: string; mapId: string; options?: Record<string, string> }) => {
-      useGameStore.getState().setRoomPlayers(players, hostId, mapId, options);
-    }
-  );
-  s.on("player:left", (id: string) => {
-    remoteStates.delete(id);
+  s.on("connect", () => tryRejoin(s));
+  s.on("disconnect", (reason) => {
+    if (reason === "io client disconnect" || !session) return;
+    useNetStatus.getState().setReconnecting(true);
+    // The server closed the connection on purpose: socket.io will not retry by itself.
+    if (reason === "io server disconnect") s.connect();
   });
-  s.on("car:state", (msg: NetState & { id: string }) => {
-    remoteStates.set(msg.id, { ...msg, t: performance.now() });
+  // All retries used up while we were in a room: give up and return to the menu.
+  s.io.on("reconnect_failed", () => {
+    if (!session) return;
+    const store = useGameStore.getState();
+    endSession("Lost connection to the game server.");
+    store.leaveRoom();
+  });
+
+  s.on("room:players", (snap: RoomSnapshot) => applySnapshot(snap));
+  s.on("player:left", (id: string) => removeRemote(id));
+  s.on("car:state", (msg: NetState & { id: string; t: number }) => {
+    pushSnapshot(msg.id, msg, performance.now());
   });
   s.on("race:start", () => {
-    remoteStates.clear();
+    clearRemotes();
+    useOnlineResults.getState().clear();
     useGameStore.getState().beginOnlineRace();
   });
-  s.on("race:results", (order: string[]) => {
-    useGameStore.getState().setOnlineResults(order);
-  });
-  s.on("disconnect", () => {
-    useGameStore.getState().leaveRoom();
+  s.on("race:results", ({ entries, over }: { entries: WireResultEntry[]; over: boolean }) => {
+    useOnlineResults.getState().set(entries, over);
+    useGameStore.getState().setOnlineResults(entries.map((e) => e.id));
   });
   return s;
 }
 
+/** Resolves once connected; rejects after ~5 s so the UI can show an error instead of hanging. */
+function ensureConnected(): Promise<Socket> {
+  const s = getSocket();
+  if (s.connected) return Promise.resolve(s);
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      s.off("connect", onConnect);
+    };
+    const onConnect = () => {
+      cleanup();
+      resolve(s);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(UNAVAILABLE_MESSAGE));
+    }, CONNECT_TIMEOUT_MS);
+    s.on("connect", onConnect);
+    s.connect();
+  });
+}
+
 function applyJoin(ack: JoinAck) {
-  if (ack.ok && ack.code && ack.id && ack.players && ack.hostId) {
+  if (ack.ok && ack.code && ack.id && ack.token && ack.players && ack.hostId) {
+    session = { code: ack.code, id: ack.id, token: ack.token };
+    useNetStatus.getState().setReconnecting(false);
+    useNetStatus.getState().setMenuMessage(null);
+    useOnlineResults.getState().clear();
     useGameStore.getState().enterRoom(ack.code, ack.id, ack.players, ack.hostId, ack.mapId ?? "circuit", ack.options ?? {});
   }
 }
 
-export function createRoom(profile: Profile, mapId: string): Promise<JoinAck> {
-  return new Promise((resolve) => {
-    getSocket().emit("room:create", profile, mapId, (ack: JoinAck) => {
-      applyJoin(ack);
-      resolve(ack);
-    });
-  });
+function request(event: "room:create" | "room:join", ...args: unknown[]): Promise<JoinAck> {
+  return ensureConnected().then(
+    (s) =>
+      new Promise<JoinAck>((resolve) => {
+        s.timeout(ACK_TIMEOUT_MS).emit(event, ...args, (err: Error | null, ack?: JoinAck) => {
+          if (err || !ack) return resolve({ ok: false, error: "The server did not respond. Please try again." });
+          applyJoin(ack);
+          resolve(ack);
+        });
+      }),
+    () => ({ ok: false, error: UNAVAILABLE_MESSAGE + (REALTIME_URL ? WAKING_HINT : "") })
+  );
 }
 
-export function joinRoom(code: string, profile: Profile): Promise<JoinAck> {
-  return new Promise((resolve) => {
-    getSocket().emit("room:join", code, profile, (ack: JoinAck) => {
-      applyJoin(ack);
-      resolve(ack);
-    });
-  });
-}
+export const createRoom = (profile: Profile, mapId: string) => request("room:create", profile, mapId);
+export const joinRoom = (code: string, profile: Profile) => request("room:join", code, profile);
 
 export function changeRoomMap(mapId: string) {
   socket?.emit("room:map", mapId);
@@ -108,18 +192,28 @@ export function changeRoomOptions(patch: Record<string, string>) {
 }
 
 export function requestStart() {
-  socket?.emit("room:start");
+  socket?.emit("room:start", (ack?: { ok: boolean; error?: string }) => {
+    if (ack && !ack.ok) useGameStore.getState().flash(ack.error ?? "Could not start");
+  });
 }
 
+/** Called ~30x/s by the local car. Stamped with our clock so receivers can interpolate. */
 export function sendState(state: NetState) {
-  socket?.volatile.emit("car:state", state);
+  if (socket?.connected) socket.volatile.emit("car:state", { ...state, t: performance.now() });
 }
 
+/** The server decides the result; we only report our best lap (it is sanity-checked there). */
 export function sendFinish() {
-  socket?.emit("race:finish");
+  const best = useGameStore.getState().player.bestLapTime;
+  const payload = { bestLapMs: best === null ? null : Math.round(best * 1000) };
+  if (socket?.connected) socket.emit("race:finish", payload, onFinishAck);
+  else pendingFinish = payload; // connection dropped right at the line: send after we reclaim our seat
 }
 
 export function leaveRoomNet() {
-  socket?.emit("room:leave");
-  remoteStates.clear();
+  const s = socket;
+  if (s?.connected) s.emit("room:leave");
+  endSession();
+  // Idle in the menu we do not need a live connection (and must not keep retrying a dead server).
+  s?.disconnect();
 }

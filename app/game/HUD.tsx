@@ -11,6 +11,9 @@ import { ProfileSync } from "./ProfileSync";
 import { SpeedFx } from "./SpeedFx";
 import { getCar } from "./cars";
 import { WeatherBadge, WeatherPicker, resetWeatherToMapDefault } from "./WeatherPicker";
+import { PlayerNameField } from "./PlayerNameField";
+import { ConnectionBanner, MenuNetMessage } from "./NetBanner";
+import { RaceResults } from "./Results";
 import { SettingsButton, SettingsPanel } from "./SettingsPanel";
 import { TouchControls } from "./TouchControls";
 import { FpsCounter } from "./FpsCounter";
@@ -25,7 +28,6 @@ function formatTime(seconds: number): string {
   return `${m}:${s}`;
 }
 
-const ordinal = (n: number) => ["1st", "2nd", "3rd", "4th"][n - 1] ?? `${n}th`;
 
 const primaryButton =
   "min-h-12 rounded-full bg-red-600 px-8 py-3 text-xl font-bold uppercase tracking-wide shadow-lg transition-transform hover:scale-105 hover:bg-red-500 disabled:opacity-50 disabled:hover:scale-100 short:py-2 short:text-lg";
@@ -95,6 +97,7 @@ function Menu() {
             }}
           />
           <WeatherPicker />
+          <PlayerNameField />
         </div>
         <div className="flex flex-col items-center gap-4 short:gap-3">
           <button
@@ -134,8 +137,9 @@ function Menu() {
                 Join
               </button>
             </div>
-            {error && <p className="text-sm text-red-400">{error}</p>}
+            {error && <p className="max-w-xs text-center text-sm text-red-400">{error}</p>}
           </div>
+          <MenuNetMessage />
         </div>
       </div>
     </div>
@@ -172,14 +176,18 @@ function Lobby() {
         <div className="flex flex-col items-center gap-3 short:gap-2">
           <p className="text-center text-zinc-300">Share this code with friends (up to 4 players).</p>
           <p className="max-w-sm text-center text-xs text-zinc-400 short:hidden">
-            Testing on one computer? Use two separate browser windows side by side. A background tab pauses its game, so that player looks frozen.
+            Testing on one computer? Use two separate browser windows side by side. A background tab keeps racing, but may run slower.
           </p>
           <ul className="w-64 max-w-full space-y-1">
-            {roomPlayers.map((p, i) => (
+            {roomPlayers.map((p) => (
               <li key={p.id} className="flex justify-between rounded-md bg-white/10 px-3 py-2">
-                <span>
-                  {p.name} {i + 1}
-                  {p.id === myId ? " (you)" : ""}
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="inline-block h-3 w-3 shrink-0 rounded-full ring-1 ring-white/50" style={{ background: p.paint }} />
+                  <span className="truncate">
+                    {p.name}
+                    {p.id === myId ? " (you)" : ""}
+                  </span>
+                  {p.offline && <span className="text-xs text-amber-300">reconnecting</span>}
                 </span>
                 {p.id === hostId && <span className="text-xs text-yellow-400">HOST</span>}
               </li>
@@ -264,19 +272,13 @@ function ItemSlot() {
 
 export function HUD() {
   const phase = useGameStore((s) => s.phase);
-  const mode = useGameStore((s) => s.mode);
   const raceState = useGameStore((s) => s.raceState);
   const countdownValue = useGameStore((s) => s.countdownValue);
   const muted = useGameStore((s) => s.muted);
-  const place = useGameStore((s) => s.player.place);
-  const bestLapTime = useGameStore((s) => s.player.bestLapTime);
   const toggleMuted = useGameStore((s) => s.toggleMuted);
-  const reset = useGameStore((s) => s.reset);
-  const leaveRoom = useGameStore((s) => s.leaveRoom);
   const showTouch = useShowTouchControls();
 
   const playing = phase === "playing";
-  const online = mode === "online";
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none font-sans text-white">
@@ -284,6 +286,7 @@ export function HUD() {
       {playing && <SpeedFx />}
       {phase === "menu" && <Menu />}
       {phase === "lobby" && <Lobby />}
+      <ConnectionBanner />
 
       {playing && raceState === "countdown" && (
         <div className="absolute inset-0 flex items-center justify-center">
@@ -319,36 +322,7 @@ export function HUD() {
       {playing && raceState !== "finished" && showTouch && <TouchControls />}
       {playing && raceState !== "finished" && showTouch && <RotateHint />}
 
-      {playing && raceState === "finished" && (
-        <div className="pointer-events-auto safe-pad absolute inset-0 overflow-y-auto overscroll-contain bg-black/75">
-          <div className="mx-auto flex min-h-full flex-col items-center justify-center gap-4 text-center">
-            <h2 className="text-3xl font-black sm:text-4xl">
-              {place === null
-                ? "FINISHED"
-                : online
-                  ? `YOU FINISHED ${ordinal(place).toUpperCase()}`
-                  : place === 1
-                    ? "YOU WIN"
-                    : "BOT WINS"}
-            </h2>
-            {bestLapTime !== null && <p className="text-zinc-300">Best lap: {formatTime(bestLapTime)}</p>}
-            <button className={primaryButton} onClick={reset}>
-              {online ? "Back to lobby" : "Race again"}
-            </button>
-            {online && (
-              <button
-                className={secondaryButton}
-                onClick={() => {
-                  leaveRoomNet();
-                  leaveRoom();
-                }}
-              >
-                Leave room
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {playing && raceState === "finished" && <RaceResults />}
 
       <LoadingScreen />
       <FpsCounter />

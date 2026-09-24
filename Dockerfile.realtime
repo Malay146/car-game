@@ -1,0 +1,19 @@
+# Standalone realtime (Socket.IO) server.
+#   docker build -f Dockerfile.realtime -t chaos-realtime .
+#   docker run -p 4000:4000 -e ALLOWED_ORIGINS=https://your-site.vercel.app chaos-realtime
+FROM node:22-alpine
+WORKDIR /app
+ENV PORT=4000
+
+COPY package.json package-lock.json ./
+# tsx is a devDependency but is how the TypeScript server is run.
+RUN npm ci --include=dev --ignore-scripts && npm cache clean --force
+
+# The server only needs itself plus the track geometry it uses to validate progress.
+COPY tsconfig.json ./
+COPY realtime ./realtime
+COPY app/game/trackPath.ts app/game/maps.ts ./app/game/
+
+EXPOSE 4000
+HEALTHCHECK --interval=30s --timeout=3s CMD wget -qO- http://localhost:${PORT}/healthz || exit 1
+CMD ["npx", "tsx", "realtime/server.ts"]

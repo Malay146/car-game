@@ -10,6 +10,7 @@ import { Car } from "./Car";
 import { RemoteCar } from "./RemoteCar";
 import { CameraRig } from "./CameraRig";
 import { ItemBoxes } from "./ItemBoxes";
+import { HiddenTabKeeper } from "./HiddenTabKeeper";
 import { Effects } from "./Effects";
 import { WeatherRig } from "./WeatherRig";
 import { getGridSlot } from "./trackPath";
@@ -88,6 +89,7 @@ export function Scene() {
                   id={p.id}
                   model={rc.url}
                   color={paintOf(rc, p.paint)}
+                  name={p.name}
                   startX={g.x}
                   startZ={g.z}
                   startHeading={g.heading}
@@ -110,6 +112,7 @@ export function Scene() {
       </Physics>
 
       <CameraRig target={playerTransform} />
+      <HiddenTabKeeper />
 
       {/* Only High pays for a post-processing pass (bloom); the vignette is a free CSS overlay below. */}
       {quality.post === "full" && (

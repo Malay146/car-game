@@ -1,0 +1,17 @@
+# Render blueprint for the standalone realtime (Socket.IO) server.
+# The frontend stays on Vercel; set NEXT_PUBLIC_REALTIME_URL there to this service's URL.
+services:
+  - type: web
+    name: chaos-circuit-realtime
+    runtime: node
+    plan: free
+    # tsx (a devDependency) runs the TypeScript server directly, so install dev dependencies too.
+    buildCommand: npm ci --include=dev
+    startCommand: npx tsx realtime/server.ts
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Comma separated browser origins allowed to connect. Add preview / custom domains here.
+      - key: ALLOWED_ORIGINS
+        value: https://car-game-mu-seven.vercel.app

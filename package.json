@@ -6,7 +6,10 @@
     "dev": "tsx server.ts",
     "build": "next build",
     "start": "NODE_ENV=production tsx server.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "realtime": "tsx realtime/server.ts",
+    "realtime:test": "tsx realtime/selftest.ts",
+    "dev:all": "node scripts/dev-all.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.8",
