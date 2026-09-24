@@ -9,6 +9,7 @@ import { getMap } from "./maps";
 import { getTerrain } from "./terrain";
 import { useGameStore } from "./store";
 import { MapFeatures } from "./MapFeatures";
+import { useWeatherId } from "./weather";
 import { InstancedProps, Placement, Prop } from "./Props";
 
 const ROAD_Y = 0.03;
@@ -157,10 +158,15 @@ function makeCheckerTexture(): THREE.CanvasTexture {
   return t;
 }
 
+function wetTint(hex: string, k: number): string {
+  return "#" + new THREE.Color(hex).multiplyScalar(k).getHexString();
+}
+
 export function Track() {
   const mapId = useGameStore((st) => st.mapId);
   const map = getMap(mapId);
   const theme = map.theme;
+  const weather = useWeatherId();
   const path = useMemo(() => generateCenterline(mapId), [mapId]);
 
   const g = theme.ground.key;
@@ -333,6 +339,9 @@ export function Track() {
   const [snx, snz] = normalOf(start);
   const standOff = TRACK.wallOffset + 9;
   const neon = !!theme.neon;
+  // Wet look in rain/storm: darker, glossier asphalt that picks up reflections from the sky HDRI.
+  const wet = weather === "rain" || weather === "storm";
+  const roadColor = wet ? wetTint(theme.roadTint, 0.62) : theme.roadTint;
 
   return (
     <group>
@@ -356,7 +365,9 @@ export function Track() {
           map={asphaltD}
           normalMap={asphaltN}
           roughnessMap={asphaltR}
-          color={theme.roadTint}
+          roughness={wet ? 0.42 : 1}
+          envMapIntensity={wet ? 1.6 : 1}
+          color={roadColor}
           side={THREE.DoubleSide}
           polygonOffset
           polygonOffsetFactor={-2}

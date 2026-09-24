@@ -2,7 +2,6 @@
 
 import { useRef } from "react";
 import { Canvas } from "@react-three/fiber";
-import { Environment } from "@react-three/drei";
 import { Physics } from "@react-three/rapier";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import { Track } from "./Track";
@@ -11,11 +10,10 @@ import { RemoteCar } from "./RemoteCar";
 import { CameraRig } from "./CameraRig";
 import { ItemBoxes } from "./ItemBoxes";
 import { Effects } from "./Effects";
-import { SunLight } from "./SunLight";
+import { WeatherRig } from "./WeatherRig";
 import { getGridSlot } from "./trackPath";
 import { CarTransform } from "./vehicleTypes";
 import { useGameStore } from "./store";
-import { getMap } from "./maps";
 
 const CAR_COLORS = ["#e0322f", "#f2c14e", "#3b82f6", "#22c55e"];
 const CAR_MODELS = [
@@ -27,7 +25,6 @@ const CAR_MODELS = [
 
 export function Scene() {
   const mapId = useGameStore((s) => s.mapId);
-  const theme = getMap(mapId).theme;
   const mode = useGameStore((s) => s.mode);
   const raceId = useGameStore((s) => s.raceId);
   const myId = useGameStore((s) => s.myId);
@@ -43,10 +40,7 @@ export function Scene() {
 
   return (
     <Canvas shadows camera={{ fov: 60, near: 0.1, far: 900 }}>
-      <fog attach="fog" args={[theme.fog.color, theme.fog.near, theme.fog.far]} />
-      <ambientLight intensity={theme.sun.ambient} />
-      <SunLight target={playerTransform} sun={theme.sun} />
-      <Environment key={mapId} files={theme.hdr} background environmentIntensity={theme.envIntensity} />
+      <WeatherRig target={playerTransform} />
 
       <Physics gravity={[0, -9.81, 0]} timeStep={1 / 60}>
         <Track key={`track-${mapId}`} />

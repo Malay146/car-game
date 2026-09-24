@@ -4,20 +4,29 @@ import { RefObject, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { CarTransform } from "./vehicleTypes";
-import type { MapTheme } from "./maps";
+
+/** Live sun parameters, eased every frame by WeatherRig (colour / intensity / direction). */
+export interface LiveSun {
+  color: THREE.Color;
+  intensity: number;
+  pos: THREE.Vector3;
+}
 
 /** Directional sun whose shadow box follows the player car. */
-export function SunLight({ target, sun }: { target: RefObject<CarTransform>; sun: MapTheme["sun"] }) {
+export function SunLight({ target, sunRef }: { target: RefObject<CarTransform>; sunRef: RefObject<LiveSun | null> }) {
   const light = useRef<THREE.DirectionalLight>(null);
   const aim = useRef<THREE.Object3D>(null);
 
   useFrame(() => {
     const l = light.current;
     const a = aim.current;
-    if (!l || !a) return;
+    const sun = sunRef.current;
+    if (!l || !a || !sun) return;
     const t = target.current;
     a.position.set(t.x, 0, t.z);
-    l.position.set(t.x + sun.position[0], sun.position[1], t.z + sun.position[2]);
+    l.position.set(t.x + sun.pos.x, sun.pos.y, t.z + sun.pos.z);
+    l.color.copy(sun.color);
+    l.intensity = sun.intensity;
     l.target.updateMatrixWorld();
   });
 
@@ -29,8 +38,7 @@ export function SunLight({ target, sun }: { target: RefObject<CarTransform>; sun
           light.current = l;
           if (l && aim.current) l.target = aim.current;
         }}
-        intensity={sun.intensity}
-        color={sun.color}
+        intensity={0}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-45}

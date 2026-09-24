@@ -6,6 +6,7 @@ import { startAudio } from "./AudioManager";
 import { changeRoomMap, createRoom, joinRoom, leaveRoomNet, requestStart } from "./net";
 import { MapCarousel } from "./MapCarousel";
 import { Minimap } from "./Minimap";
+import { WeatherBadge, WeatherPicker, resetWeatherToMapDefault } from "./WeatherPicker";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -69,7 +70,14 @@ function Menu() {
       <p className="max-w-md text-center text-zinc-300">
         WASD / arrows to drive, Space to brake, Shift to handbrake-drift, E to boost, F to flip the car upright, R to return to your last checkpoint. {totalLaps} laps.
       </p>
-      <MapCarousel value={mapId} onChange={selectMap} />
+      <MapCarousel
+        value={mapId}
+        onChange={(id) => {
+          selectMap(id);
+          resetWeatherToMapDefault();
+        }}
+      />
+      <WeatherPicker />
       <button
         className={primaryButton}
         onClick={() => {
@@ -124,8 +132,10 @@ function Lobby() {
         onChange={(id) => {
           selectMap(id);
           changeRoomMap(id);
+          resetWeatherToMapDefault();
         }}
       />
+      <WeatherPicker readOnly={!isHost} />
       <p className="text-zinc-300">Share this code with friends (up to 4 players).</p>
       <p className="max-w-sm text-center text-xs text-zinc-400">
         Testing on one computer? Use two separate browser windows side by side. A background tab pauses its game, so that player looks frozen.
@@ -202,6 +212,7 @@ export function HUD() {
             {!online && (
               <div className="mt-1 text-xs text-zinc-400">Bot lap {Math.min(bot.lap + 1, totalLaps)}</div>
             )}
+            <WeatherBadge />
           </div>
 
           <Minimap />
